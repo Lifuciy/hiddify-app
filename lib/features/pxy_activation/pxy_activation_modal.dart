@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import 'pxy_api.dart';
+import 'device_id.dart';
+
+import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
+
 class PxyActivationModal extends ConsumerStatefulWidget {
   const PxyActivationModal({super.key});
 
@@ -37,13 +42,15 @@ class _PxyActivationModalState extends ConsumerState<PxyActivationModal> {
       final r = await PxyApi.activate(code: code, deviceId: deviceId);
       final vless = (r['vless'] ?? '') as String;
       if (vless.isEmpty) throw Exception('No vless from API');
+
       await ref.read(addProfileNotifierProvider.notifier).addClipboard(vless);
+
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('PXY активирован ✅')),
       );
-} finally {
+    } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -64,7 +71,7 @@ class _PxyActivationModalState extends ConsumerState<PxyActivationModal> {
             onSubmitted: (_) => _activate(),
             decoration: const InputDecoration(
               labelText: 'Код активации',
-              hintText: 'PXY-XXXX-XXXX',
+              hintText: 'PXY-xxxxxxxxxxxxxxxx',
               border: OutlineInputBorder(),
             ),
           ),
