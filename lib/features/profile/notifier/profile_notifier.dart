@@ -61,6 +61,12 @@ class AddProfileNotifier extends _$AddProfileNotifier with AppLogger {
   CancelToken? _cancelToken;
 
   Future<void> addClipboard(String rawInput) async {
+    // PXY_LOCKDOWN: allow only activation / pxy:// / vless://
+    final _pxy = rawInput.trim();
+    if (!_pxy.startsWith('PXY-') && !_pxy.startsWith('pxy://') && !_pxy.startsWith('vless://')) {
+      throw ProfileInvalidUrlFailure();
+    }
+
     if (state.isLoading) return;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -94,6 +100,9 @@ class AddProfileNotifier extends _$AddProfileNotifier with AppLogger {
   }
 
   Future<void> addManual({required String url, required UserOverride userOverride}) async {
+    // PXY_LOCKDOWN: manual import disabled
+    throw ProfileInvalidUrlFailure();
+
     if (state.isLoading) return;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
