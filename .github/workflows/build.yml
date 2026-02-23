@@ -53,7 +53,7 @@ jobs:
 
       - name: make draftBuildCode
         id: draftBuildCode
-        run: echo "::set-output name=datetime::$(date +'%d.%H.%M')"
+        run: echo "datetime=$(date +'%d.%H.%M')" >> "$GITHUB_OUTPUT"
 
 
   build:
@@ -357,6 +357,26 @@ jobs:
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db ||echo ok
           rm ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision ||echo ok
+      - name: PXY_ARTIFACTS: build installable debug APK
+        if: always()
+        run: |
+          flutter --version || true
+          flutter pub get || true
+          flutter build apk --debug || true
+
+      - name: PXY_ARTIFACTS: upload build outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pxy-${{ matrix.platform || matrix.target || matrix.build || matrix.os || matrix.name || 'artifact' }}
+          if-no-files-found: warn
+          path: |
+            build/app/outputs/flutter-apk/**/*.apk
+            build/app/outputs/bundle/**/*.aab
+            build/**/outputs/**/*.apk
+            build/**/outputs/**/*.aab
+            dist/**
+            output/**
   update-draft:
     permissions: write-all
     if: ${{ inputs.upload-artifact }}
