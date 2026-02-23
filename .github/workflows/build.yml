@@ -39,7 +39,7 @@ jobs:
       draftBuildCode: ${{ steps.draftBuildCode.outputs.datetime }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2.16.0 #issue with 2.13
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -111,7 +111,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Import Apple Codesign Certificates
         if: ${{ inputs.upload-artifact && startsWith(matrix.os,'macos') }}
@@ -364,7 +364,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           # by default, it uses a depth of 1
           # this fetches all history so that we can read each commit
@@ -430,7 +430,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Download Artifact
         uses: actions/download-artifact@v4
