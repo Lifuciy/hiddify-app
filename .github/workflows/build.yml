@@ -357,26 +357,19 @@ jobs:
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db ||echo ok
           rm ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision ||echo ok
-      - name: PXY_ARTIFACTS: build installable debug APK
-        if: always()
-        run: |
-          flutter --version || true
-          flutter pub get || true
-          flutter build apk --debug || true
-
-      - name: PXY_ARTIFACTS: upload build outputs
+      - name: PXY_ARTIFACTS_UPLOAD
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pxy-${{ matrix.platform || matrix.target || matrix.build || matrix.os || matrix.name || 'artifact' }}
+          name: pxy-${{ matrix.build }}-${{ matrix.os }}-${{ matrix.type }}
           if-no-files-found: warn
           path: |
-            build/app/outputs/flutter-apk/**/*.apk
             build/app/outputs/bundle/**/*.aab
-            build/**/outputs/**/*.apk
             build/**/outputs/**/*.aab
+            build/**/outputs/**/*.apk
             dist/**
             output/**
+
   update-draft:
     permissions: write-all
     if: ${{ inputs.upload-artifact }}
