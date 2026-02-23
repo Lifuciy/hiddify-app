@@ -53,7 +53,7 @@ jobs:
 
       - name: make draftBuildCode
         id: draftBuildCode
-        run: echo "::set-output name=datetime::$(date +'%d.%H.%M')"
+        run: echo "datetime=$(date +'%d.%H.%M')" >> "$GITHUB_OUTPUT"
 
 
   build:
