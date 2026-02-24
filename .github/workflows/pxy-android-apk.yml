@@ -18,14 +18,28 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: Rewrite submodule URLs to HTTPS + fetch
+      - name: Force submodules via HTTPS + fetch
+        shell: bash
         run: |
-          # Force SSH-style GitHub URLs to HTTPS (works for nested submodules too)
+          # глобальная подмена SSH->HTTPS (работает для любых уровней вложенности)
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "ssh://github.com/"
 
-          # Fetch submodules (recursive)
+          # 1) перепишем корневой .gitmodules (если есть)
+          if [ -f .gitmodules ]; then
+            sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
+            sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
+            git submodule sync --recursive || true
+          fi
+
+          # 2) подтянем только 1-й уровень (без recursive)
+          git submodule update --init
+
+          # 3) теперь появились вложенные .gitmodules — переписываем их ВСЕ
+          find . -name .gitmodules -print -exec sed -i 's#ssh://git@github.com/#https://github.com/#g' {} \; -exec sed -i 's#git@github.com:#https://github.com/#g' {} \;
+
+          # 4) полная рекурсивная инициализация
           git submodule sync --recursive || true
           git submodule update --init --recursive
 
@@ -54,6 +68,9 @@ jobs:
 
       - name: Generate code (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Android deps via make
+        run: make android-aab-install-deps
 
       - name: Android prepare (libs/core)
         run: |
