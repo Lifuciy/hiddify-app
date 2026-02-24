@@ -15,9 +15,20 @@ jobs:
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
+        with:
           ref: ${{ inputs.ref }}
-          submodules: recursive
           fetch-depth: 0
+
+
+      - name: Rewrite submodule URLs to HTTPS
+        run: |
+          test -f .gitmodules || exit 0
+          sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
+          sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
+          git submodule sync --recursive
+
+      - name: Fetch submodules
+        run: git submodule update --init --recursive
 
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install -y make unzip curl
