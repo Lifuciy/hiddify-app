@@ -80,14 +80,14 @@ jobs:
       - name: Build Windows (release, short build dir)
         shell: pwsh
         run: |
-          flutter build windows --release --build-dir bld --verbose 2>&1 | Tee-Object -FilePath build_windows.log
+          flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath build_windows.log
 
       - name: Pack release to zip
         if: success()
         shell: pwsh
         run: |
-          $src = "bld/windows/x64/runner/Release"
-          if (!(Test-Path $src)) { $src = "bld/windows/runner/Release" }
+          $src = "build/windows/x64/runner/Release"
+          if (!(Test-Path $src)) { $src = "build/windows/runner/Release" }
           $zip = "pxy-windows.zip"
           if (Test-Path $zip) { Remove-Item $zip -Force }
           Compress-Archive -Path "$src\*" -DestinationPath $zip
