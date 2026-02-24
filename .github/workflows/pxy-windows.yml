@@ -61,64 +61,53 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22.x"
-      - name: Build hiddify-core DLL (Windows)
+
+      - name: Setup MSYS2 (gcc for cgo)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+
+      - name: Add gcc to PATH
         shell: pwsh
         run: |
+          echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          gcc --version
+
+      - name: Build hiddify-core.dll (c-shared)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
           if (!(Test-Path "hiddify-core\bin")) { New-Item -ItemType Directory -Force -Path "hiddify-core\bin" | Out-Null }
 
-          Write-Host "=== Inspect hiddify-core repo ==="
-          Get-ChildItem "hiddify-core" -Force | Select-Object Name
-          if (Test-Path "hiddify-core\cmd") { Get-ChildItem "hiddify-core\cmd" -Force | Select-Object Name }
-          if (Test-Path "hiddify-core\cli") { Get-ChildItem "hiddify-core\cli" -Force | Select-Object Name }
-          if (Test-Path "hiddify-core\go.mod") { Get-Content "hiddify-core\go.mod" -TotalCount 20 }
-
-          Write-Host "=== Try build c-shared DLL via go ==="
           Push-Location hiddify-core
 
-          # Find a likely main/package to build as c-shared.
-          # We try in this order:
-          # 1) ./cmd/hiddify-core
-          # 2) ./cmd/core
-          # 3) ./cmd (single main)
-          # 4) ./ (fallback; may fail)
-          $candidates = @(
-            "cmd/hiddify-core",
-            "cmd/core",
-            "cmd"
-          )
+          $env:CGO_ENABLED = "1"
+          $env:CC = "gcc"
 
-          $built = $false
-          foreach ($c in $candidates) {
-            $path = Join-Path (Get-Location) $c
-            if (Test-Path $path) {
-              try {
-                Write-Host "Trying: $c"
-                go env -w CGO_ENABLED=1 | Out-Null
-                # buildmode=c-shared produces .dll + .h
-                go build -buildmode=c-shared -o (Join-Path "..\hiddify-core\bin" "hiddify-core.dll") "./$c"
-                $built = $true
-                break
-              } catch {
-                Write-Host "Failed for $c"
-              }
-            }
-          }
+          # найти main-пакеты
+          $pkgs = @(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./... | Where-Object { $_ -and $_.Trim() -ne "" })
+          if ($LASTEXITCODE -ne 0) { throw "go list failed" }
 
-          if (-not $built) {
-            Write-Host "No candidate succeeded. Showing Go packages under cmd/:"
-            if (Test-Path "cmd") { Get-ChildItem "cmd" -Recurse -Directory -Force | Select-Object FullName }
-            throw "hiddify-core.dll build failed (no suitable package found)"
-          }
+          # приоритет тем, где есть core/hiddify
+          $pick = ($pkgs | Where-Object { $_ -match "core|hiddify" } | Select-Object -First 1)
+          if (-not $pick) { $pick = ($pkgs | Select-Object -First 1) }
+          if (-not $pick) { throw "No main packages found in hiddify-core" }
+
+          Write-Host "Building c-shared from: $pick"
+          go build -buildmode=c-shared -o "bin\hiddify-core.dll" $pick
+          if ($LASTEXITCODE -ne 0) { throw "go build failed" }
 
           Pop-Location
 
           if (!(Test-Path "hiddify-core\bin\hiddify-core.dll")) {
             Write-Host "=== hiddify-core\bin ==="
             Get-ChildItem "hiddify-core\bin" -Force | Format-List
-            throw "hiddify-core.dll not found after build"
+            throw "hiddify-core.dll not created"
           }
 
-          Write-Host "OK: built hiddify-core\bin\hiddify-core.dll"
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
