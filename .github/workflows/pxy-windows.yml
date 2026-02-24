@@ -230,6 +230,50 @@ jobs:
         run: |
           flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath build_windows.log
 
+      - name: Create Windows start scripts (fix white window)
+
+        shell: pwsh
+
+        run: |
+
+          $ErrorActionPreference = "Stop"
+
+          $rel = "build\windows\x64\runner\Release"
+
+          if (!(Test-Path $rel)) { throw "Release dir not found: $rel" }
+
+          $exe = Get-ChildItem $rel -Filter *.exe | Where-Object { $_.Name -notmatch 'vc_redist|unins' } | Select-Object -First 1
+
+          if (!$exe) { throw "No .exe found in $rel" }
+
+          $exeName = $exe.Name
+
+          Write-Host "Target EXE: $exeName"
+
+      
+
+          $bat1 = "@echo off`r`ncd /d "%~dp0"`r`nstart "" "%~dp0$exeName" --disable-impeller`r`n"
+
+          Set-Content -Encoding ASCII -Path (Join-Path $rel "start_pxy_disable_impeller.bat") -Value $bat1
+
+      
+
+          $bat2 = "@echo off`r`ncd /d "%~dp0"`r`nstart "" "%~dp0$exeName" --enable-software-rendering`r`n"
+
+          Set-Content -Encoding ASCII -Path (Join-Path $rel "start_pxy_software.bat") -Value $bat2
+
+      
+
+          $txt = "If the app shows a white window:`r`n- start_pxy_disable_impeller.bat`r`n- or start_pxy_software.bat`r`n"
+
+          Set-Content -Encoding ASCII -Path (Join-Path $rel "README_START.txt") -Value $txt
+
+      
+
+          Write-Host "Release dir content:"
+
+          Get-ChildItem $rel | Select-Object Name,Length | Format-Table -AutoSize
+
       - name: Pack release to zip
         if: success()
         shell: pwsh
