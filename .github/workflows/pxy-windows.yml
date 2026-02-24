@@ -17,20 +17,18 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-
-      - name: Fetch submodules via HTTPS (if any)
-        shell: bash
+      - name: Fetch submodules via HTTPS
+        shell: pwsh
         run: |
-          set -euo pipefail
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "ssh://github.com/"
-          if [ -f .gitmodules ]; then
-            sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
-            sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
-            git submodule sync --recursive || true
+          if (Test-Path .gitmodules) {
+            (Get-Content .gitmodules) -replace 'ssh://git@github.com/', 'https://github.com/' `
+              -replace 'git@github.com:', 'https://github.com/' | Set-Content .gitmodules
+            git submodule sync --recursive
             git submodule update --init --recursive
-          fi
+          }
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
