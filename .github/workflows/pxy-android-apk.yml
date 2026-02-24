@@ -22,6 +22,11 @@ jobs:
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install -y make unzip curl
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -40,16 +45,40 @@ jobs:
       - name: Generate code (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Build AAB (project pipeline)
-        run: make android-aab
+      - name: Android prepare (libs/core)
+        run: |
+          make android-aab-prepare
+          make android-aab-libs
 
-      - name: Convert AAB -> universal APK
+      - name: Build AAB (release)
+        run: make android-aab-release
+
+      - name: Convert AAB -> universal APK (installable)
         run: |
           AAB="$(find build -type f -name '*.aab' | head -n 1)"
           echo "AAB=$AAB"
           test -n "$AAB"
+
           curl -L -o bundletool.jar https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar
-          java -jar bundletool.jar build-apks --bundle "$AAB" --output app.apks --mode=universal
+
+          # generate local keystore for signing apks
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -keypass android \
+            -alias androiddebugkey \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -keyalg RSA -keysize 2048 -validity 10000
+
+          java -jar bundletool.jar build-apks \
+            --bundle "$AAB" \
+            --output app.apks \
+            --mode=universal \
+            --ks debug.keystore \
+            --ks-pass pass:android \
+            --ks-key-alias androiddebugkey \
+            --key-pass pass:android
+
           unzip -p app.apks universal.apk > app-universal.apk
           ls -la app-universal.apk
 
