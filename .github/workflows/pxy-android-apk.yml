@@ -12,34 +12,38 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout (no submodules here!)
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: Force submodules via HTTPS + fetch
+      - name: Fetch submodules via HTTPS (2-pass, incl nested)
         shell: bash
         run: |
-          # глобальная подмена SSH->HTTPS (работает для любых уровней вложенности)
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-          git config --global url."https://github.com/".insteadOf "ssh://github.com/"
+          set -euo pipefail
 
-          # 1) перепишем корневой .gitmodules (если есть)
-          if [ -f .gitmodules ]; then
-            sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
-            sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
-            git submodule sync --recursive || true
-          fi
+          rewrite_gitmodules () {
+            local f="$1"
+            test -f "$f" || return 0
+            sed -i 's#ssh://git@github.com/#https://github.com/#g' "$f"
+            sed -i 's#ssh://github.com/#https://github.com/#g' "$f"
+            sed -i 's#git@github.com:#https://github.com/#g' "$f"
+            sed -i 's#git@github.com/#https://github.com/#g' "$f"
+          }
 
-          # 2) подтянем только 1-й уровень (без recursive)
+          # 1) rewrite root .gitmodules BEFORE any init
+          rewrite_gitmodules ".gitmodules"
+          git submodule sync --recursive || true
+
+          # 2) init first level only (so nested .gitmodules appear)
           git submodule update --init
 
-          # 3) теперь появились вложенные .gitmodules — переписываем их ВСЕ
-          find . -name .gitmodules -print -exec sed -i 's#ssh://git@github.com/#https://github.com/#g' {} \; -exec sed -i 's#git@github.com:#https://github.com/#g' {} \;
+          # 3) rewrite ALL nested .gitmodules that now exist
+          while IFS= read -r -d '' gm; do
+            rewrite_gitmodules "$gm"
+          done < <(find . -name .gitmodules -print0)
 
-          # 4) полная рекурсивная инициализация
           git submodule sync --recursive || true
           git submodule update --init --recursive
 
