@@ -12,23 +12,55 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout
+      - name: Checkout (no submodules)
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-      - name: Fetch submodules via HTTPS
-        shell: pwsh
+
+      - name: Fetch submodules (level-by-level, force HTTPS)
+        shell: bash
         run: |
+          set -euo pipefail
+
+          # глобальная подмена GitHub SSH -> HTTPS
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "ssh://github.com/"
-          if (Test-Path .gitmodules) {
-            (Get-Content .gitmodules) -replace 'ssh://git@github.com/', 'https://github.com/' `
-              -replace 'git@github.com:', 'https://github.com/' | Set-Content .gitmodules
-            git submodule sync --recursive
-            git submodule update --init --recursive
+
+          fix_file () {
+            local f="$1"
+            [ -f "$f" ] || return 0
+            sed -i 's#ssh://git@github.com/#https://github.com/#g' "$f"
+            sed -i 's#ssh://github.com/#https://github.com/#g' "$f"
+            sed -i 's#git@github.com:#https://github.com/#g' "$f"
+            sed -i 's#git@github.com/#https://github.com/#g' "$f"
           }
+
+          # ROOT
+          fix_file .gitmodules
+          git submodule sync --recursive || true
+
+          # Level 1: только hiddify-core
+          git submodule update --init hiddify-core
+
+          # Level 2: правим .gitmodules внутри core и тянем его прямые сабмодули
+          fix_file hiddify-core/.gitmodules
+          (cd hiddify-core && git submodule sync --recursive || true && git submodule update --init)
+
+          # Level 3: если есть sing-box — правим и тянем его replace/*
+          fix_file hiddify-core/hiddify-sing-box/.gitmodules
+          if [ -d hiddify-core/hiddify-sing-box ]; then
+            (cd hiddify-core/hiddify-sing-box && git submodule sync --recursive || true && git submodule update --init)
+          fi
+
+          # Final: добиваем всё рекурсивно
+          while IFS= read -r -d '' gm; do
+            fix_file "$gm"
+          done < <(find . -name .gitmodules -print0)
+
+          git submodule sync --recursive || true
+          git submodule update --init --recursive
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -52,6 +84,7 @@ jobs:
         shell: pwsh
         run: |
           $src = "build/windows/x64/runner/Release"
+          if (!(Test-Path $src)) { $src = "build/windows/runner/Release" }
           $zip = "pxy-windows.zip"
           if (Test-Path $zip) { Remove-Item $zip -Force }
           Compress-Archive -Path "$src\*" -DestinationPath $zip
