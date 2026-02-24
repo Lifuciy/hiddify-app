@@ -18,12 +18,17 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
+      - name: Enable long paths (Windows)
+        shell: pwsh
+        run: |
+          git config --system core.longpaths true
+          reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f
+
       - name: Fetch submodules (level-by-level, force HTTPS)
         shell: bash
         run: |
           set -euo pipefail
 
-          # глобальная подмена GitHub SSH -> HTTPS
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "ssh://github.com/"
@@ -37,24 +42,19 @@ jobs:
             sed -i 's#git@github.com/#https://github.com/#g' "$f"
           }
 
-          # ROOT
           fix_file .gitmodules
           git submodule sync --recursive || true
 
-          # Level 1: только hiddify-core
           git submodule update --init hiddify-core
 
-          # Level 2: правим .gitmodules внутри core и тянем его прямые сабмодули
           fix_file hiddify-core/.gitmodules
           (cd hiddify-core && git submodule sync --recursive || true && git submodule update --init)
 
-          # Level 3: если есть sing-box — правим и тянем его replace/*
           fix_file hiddify-core/hiddify-sing-box/.gitmodules
           if [ -d hiddify-core/hiddify-sing-box ]; then
             (cd hiddify-core/hiddify-sing-box && git submodule sync --recursive || true && git submodule update --init)
           fi
 
-          # Final: добиваем всё рекурсивно
           while IFS= read -r -d '' gm; do
             fix_file "$gm"
           done < <(find . -name .gitmodules -print0)
@@ -77,21 +77,32 @@ jobs:
       - name: Generate code (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Build Windows (release)
-        run: flutter build windows --release
-
-      - name: Pack release to zip
+      - name: Build Windows (release, short build dir)
         shell: pwsh
         run: |
-          $src = "build/windows/x64/runner/Release"
-          if (!(Test-Path $src)) { $src = "build/windows/runner/Release" }
+          flutter build windows --release --build-dir bld --verbose 2>&1 | Tee-Object -FilePath build_windows.log
+
+      - name: Pack release to zip
+        if: success()
+        shell: pwsh
+        run: |
+          $src = "bld/windows/x64/runner/Release"
+          if (!(Test-Path $src)) { $src = "bld/windows/runner/Release" }
           $zip = "pxy-windows.zip"
           if (Test-Path $zip) { Remove-Item $zip -Force }
           Compress-Archive -Path "$src\*" -DestinationPath $zip
           Get-ChildItem $zip
 
-      - name: Upload artifact
+      - name: Upload artifact (zip)
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pxy-windows
           path: pxy-windows.zip
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pxy-windows-build-log
+          path: build_windows.log
