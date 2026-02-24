@@ -126,6 +126,46 @@ jobs:
             throw "hiddify-core.dll not created"
           }
 
+      - name: Fix libcronet.dll path (force file)
+
+        shell: pwsh
+
+        run: |
+
+          $ErrorActionPreference = "Stop"
+
+          $bin = "hiddify-core\bin"
+
+          if (!(Test-Path $bin)) { New-Item -ItemType Directory -Force -Path $bin | Out-Null }
+
+          $p = "$bin\libcronet.dll"
+
+          if (Test-Path $p) {
+
+            $it = Get-Item $p -Force
+
+            if ($it.PSIsContainer) {
+
+              Write-Host "libcronet.dll is a DIRECTORY -> removing"
+
+              Remove-Item $p -Recurse -Force
+
+            }
+
+          }
+
+          if (!(Test-Path $p)) {
+
+            Write-Host "Creating placeholder libcronet.dll"
+
+            New-Item -ItemType File -Path $p -Force | Out-Null
+
+          }
+
+          Write-Host "libcronet.dll item:"
+
+          Get-Item $p -Force | Format-List
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
