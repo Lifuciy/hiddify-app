@@ -12,23 +12,20 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (with submodules)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-
-      - name: Rewrite submodule URLs to HTTPS
+      - name: Rewrite submodule URLs to HTTPS + fetch
         run: |
-          test -f .gitmodules || exit 0
-          sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
-          sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
-          git submodule sync --recursive
-
-      - name: Fetch submodules
-        run: git submodule update --init --recursive
+          if [ -f .gitmodules ]; then
+            sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
+            sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
+            git submodule sync --recursive
+            git submodule update --init --recursive
+          fi
 
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install -y make unzip curl
@@ -72,7 +69,6 @@ jobs:
 
           curl -L -o bundletool.jar https://github.com/google/bundletool/releases/download/1.17.0/bundletool-all-1.17.0.jar
 
-          # generate local keystore for signing apks
           keytool -genkeypair -v \
             -keystore debug.keystore \
             -storepass android \
