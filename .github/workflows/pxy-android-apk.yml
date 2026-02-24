@@ -12,23 +12,38 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (no submodules here!)
+      - name: Checkout (no submodules)
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: Fetch submodules via HTTPS (2-pass, incl nested)
+      - name: Fetch submodules (force HTTPS, incl nested)
         shell: bash
         run: |
           set -euo pipefail
 
-          # Force ANY GitHub SSH-style URLs to HTTPS (works for nested submodules too)
+          # 1) глобально заменить GitHub SSH URL -> HTTPS (работает даже для глубочайших сабмодулей)
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "ssh://github.com/"
 
-          # Now recursive submodule init works without SSH keys
+          # 2) насильно переписать корневой .gitmodules (чтобы даже "registered" был https)
+          if [ -f .gitmodules ]; then
+            echo "BEFORE .gitmodules:"; cat .gitmodules
+            sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
+            sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
+            echo "AFTER  .gitmodules:"; cat .gitmodules
+          fi
+
+          # 3) синк и первый уровень
+          git submodule sync --recursive || true
+          git submodule update --init
+
+          # 4) переписать все вложенные .gitmodules, которые появились после init
+          find . -name .gitmodules -print -exec sed -i 's#ssh://git@github.com/#https://github.com/#g' {} \; -exec sed -i 's#git@github.com:#https://github.com/#g' {} \;
+
+          # 5) полный recursive
           git submodule sync --recursive || true
           git submodule update --init --recursive
 
