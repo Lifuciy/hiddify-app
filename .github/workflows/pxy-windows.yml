@@ -12,7 +12,7 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout (no submodules)
+      - name: Checkout (no submodules in checkout)
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
@@ -24,7 +24,7 @@ jobs:
           git config --system core.longpaths true
           reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f
 
-      - name: Fetch submodules (level-by-level, force HTTPS)
+      - name: Fetch submodules (force HTTPS)
         shell: bash
         run: |
           set -euo pipefail
@@ -32,183 +32,12 @@ jobs:
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "ssh://github.com/"
 
-          fix_file () {
-            local f="$1"
-            [ -f "$f" ] || return 0
-            sed -i 's#ssh://git@github.com/#https://github.com/#g' "$f"
-            sed -i 's#ssh://github.com/#https://github.com/#g' "$f"
-            sed -i 's#git@github.com:#https://github.com/#g' "$f"
-            sed -i 's#git@github.com/#https://github.com/#g' "$f"
-          }
-
-          fix_file .gitmodules
-          git submodule sync --recursive || true
-          git submodule update --init hiddify-core
-
-          fix_file hiddify-core/.gitmodules
-          (cd hiddify-core && git submodule sync --recursive || true && git submodule update --init)
-
-          fix_file hiddify-core/hiddify-sing-box/.gitmodules
-          if [ -d hiddify-core/hiddify-sing-box ]; then
-            (cd hiddify-core/hiddify-sing-box && git submodule sync --recursive || true && git submodule update --init)
+          if [ -f .gitmodules ]; then
+            sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
+            sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
           fi
-
-          while IFS= read -r -d '' gm; do fix_file "$gm"; done < <(find . -name .gitmodules -print0)
           git submodule sync --recursive || true
-          git submodule update --init --recursive
-
-      - name: Setup Go (for hiddify-core)
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22.x"
-
-      - name: Setup MSYS2 (gcc for cgo)
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            mingw-w64-x86_64-gcc
-
-      - name: Add gcc to PATH
-        shell: pwsh
-        run: |
-          echo "C:\msys64\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          gcc --version
-      - name: Build hiddify-core.dll (c-shared)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          if (!(Test-Path "hiddify-core\bin")) { New-Item -ItemType Directory -Force -Path "hiddify-core\bin" | Out-Null }
-
-          Push-Location hiddify-core
-
-          $env:CGO_ENABLED = "1"
-          $env:CC = "gcc"
-
-          # список всех main-пакетов
-          $pkgs = @(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./... | Where-Object { $_ -and $_.Trim() -ne "" })
-          if ($LASTEXITCODE -ne 0) { throw "go list failed" }
-
-          Write-Host "Main packages:"
-          $pkgs | ForEach-Object { Write-Host " - $_" }
-
-          # сортировка: сначала dll/lib/core/hiddify
-          $ordered = $pkgs | Sort-Object `
-            @{Expression={ if ($_ -match 'dll|lib') {0} elseif ($_ -match 'core|hiddify') {1} else {2} }}, `
-            @{Expression={ $_ }}
-
-          $ok = $false
-          foreach ($pkg in $ordered) {
-            Write-Host "Try build c-shared from: $pkg"
-            Remove-Item -Force -ErrorAction SilentlyContinue "bin\hiddify-core.dll","bin\hiddify-core.h"
-
-            go build -buildmode=c-shared -o "bin\hiddify-core.dll" $pkg
-            if ($LASTEXITCODE -eq 0 -and (Test-Path "bin\hiddify-core.dll")) {
-              Write-Host "OK: built from $pkg"
-              $ok = $true
-              break
-            } else {
-              Write-Host "FAIL: $pkg"
-            }
-          }
-
-          Pop-Location
-
-          if (-not $ok) {
-            throw "No main package could build c-shared DLL"
-          }
-
-          if (!(Test-Path "hiddify-core\bin\hiddify-core.dll")) {
-            Write-Host "=== hiddify-core\bin ==="
-            Get-ChildItem "hiddify-core\bin" -Force | Format-List
-            throw "hiddify-core.dll not created"
-          }
-
-      - name: Fix libcronet.dll path (force file)
-
-        shell: pwsh
-
-        run: |
-
-          $ErrorActionPreference = "Stop"
-
-          $bin = "hiddify-core\bin"
-
-          if (!(Test-Path $bin)) { New-Item -ItemType Directory -Force -Path $bin | Out-Null }
-
-          $p = "$bin\libcronet.dll"
-
-          if (Test-Path $p) {
-
-            $it = Get-Item $p -Force
-
-            if ($it.PSIsContainer) {
-
-              Write-Host "libcronet.dll is a DIRECTORY -> removing"
-
-              Remove-Item $p -Recurse -Force
-
-            }
-
-          }
-
-          if (!(Test-Path $p)) {
-
-            Write-Host "Creating placeholder libcronet.dll"
-
-            New-Item -ItemType File -Path $p -Force | Out-Null
-
-          }
-
-          Write-Host "libcronet.dll item:"
-
-          Get-Item $p -Force | Format-List
-
-      - name: Fix hiddify-core bin paths (force files)
-
-        shell: pwsh
-
-        run: |
-
-          $ErrorActionPreference = "Stop"
-
-          $bin = "hiddify-core\bin"
-
-          if (!(Test-Path $bin)) { New-Item -ItemType Directory -Force -Path $bin | Out-Null }
-
-          $need = @("HiddifyCli.exe","libcronet.dll")
-
-          foreach ($f in $need) {
-
-            $p = Join-Path $bin $f
-
-            if (Test-Path $p) {
-
-              $it = Get-Item $p -Force
-
-              if ($it.PSIsContainer) {
-
-                Write-Host "$f is a DIRECTORY -> removing"
-
-                Remove-Item $p -Recurse -Force
-
-              }
-
-            }
-
-            if (!(Test-Path $p)) {
-
-              Write-Host "Creating placeholder $f"
-
-              New-Item -ItemType File -Path $p -Force | Out-Null
-
-            }
-
-            Get-Item $p -Force | Format-List
-
-          }
+          git submodule update --init --recursive || true
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -225,83 +54,68 @@ jobs:
       - name: Generate code (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Ensure core bin placeholders (avoid cmake install fails)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          $bin = "hiddify-core\bin"
+          if (!(Test-Path $bin)) { New-Item -ItemType Directory -Force -Path $bin | Out-Null }
+          $need = @("hiddify-core.dll","HiddifyCli.exe","libcronet.dll")
+          foreach ($f in $need) {
+            $p = Join-Path $bin $f
+            if (Test-Path $p) {
+              $it = Get-Item $p -Force
+              if ($it.PSIsContainer) { Remove-Item $p -Recurse -Force }
+            }
+            if (!(Test-Path $p)) { New-Item -ItemType File -Path $p -Force | Out-Null }
+          }
+          Get-ChildItem $bin -Force | Select-Object Name,Length
+
       - name: Build Windows (release)
         shell: pwsh
         run: |
           flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath build_windows.log
 
-      - name: Create Windows start scripts (fix white window)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $out = "build/windows/x64/runner/Release"
-          if (!(Test-Path $out)) { throw "Release dir not found: $out" }
-
-          $exe = (Get-ChildItem $out -Filter *.exe | Select-Object -First 1).Name
-          if (-not $exe) { throw "No .exe found in $out" }
-
-          @"
-@echo off
-cd /d %~dp0
-start "" "%~dp0$exe" --disable-impeller --enable-software-rendering
-"@ | Set-Content -Path (Join-Path $out "run_start.bat") -Encoding ASCII
-
-          Write-Host "OK: run_start.bat created for $exe"
-      - name: Add run_safe.bat (console start + flags)
+      - name: Create start scripts (white screen workaround)
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $out = "build\windows\x64\runner\Release"
-          if (!(Test-Path $out)) { throw "Release dir not found: $out" }
+          if (!(Test-Path $out)) { $out = "build\windows\runner\Release" }
+          if (!(Test-Path $out)) { throw "Release dir not found" }
 
           $exe = (Get-ChildItem $out -Filter *.exe | Select-Object -First 1).Name
-          if (-not $exe) { throw "No .exe found in $out" }
+          if (-not $exe) { throw "No exe found" }
 
-          $bat = "@echo off`r`ncd /d %~dp0`r`n%~dp0$exe --disable-impeller --enable-software-rendering`r`npause`r`n"
-          Set-Content -Path (Join-Path $out "run_safe.bat") -Value $bat -Encoding ASCII
+          @'
+@echo off
+cd /d %~dp0
+start "" "%~dp0__EXE__" --disable-impeller --enable-software-rendering
+'@.Replace("__EXE__", $exe) | Set-Content -Encoding ASCII -Path (Join-Path $out "run_start.bat")
 
-          Write-Host "OK: run_safe.bat created for $exe"
+          @'
+@echo off
+cd /d %~dp0
+"%~dp0__EXE__" --disable-impeller --enable-software-rendering
+pause
+'@.Replace("__EXE__", $exe) | Set-Content -Encoding ASCII -Path (Join-Path $out "run_safe.bat")
 
-      - name: Bundle MinGW runtime DLLs (for hiddify-core.dll / HiddifyCli.exe)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Continue"
-          $mingw = "C:\msys64\mingw64\bin"
-          $out   = "build\windows\x64\runner\Release"
-
-          if (!(Test-Path $out)) { throw "Release dir not found: $out" }
-
-          $deps = @("libgcc_s_seh-1.dll","libstdc++-6.dll","libwinpthread-1.dll")
-          foreach ($d in $deps) {
-            $src = Join-Path $mingw $d
-            $dst = Join-Path $out $d
-            if (Test-Path $src) {
-              Copy-Item $src $dst -Force
-              Write-Host "Copied $d"
-            } else {
-              Write-Host "WARN: not found in mingw: $src"
-            }
-          }
-
-          Write-Host "Release dir DLL snapshot:"
-          Get-ChildItem $out -Filter *.dll | Select-Object Name,Length | Format-Table -AutoSize
       - name: Pack release to zip
-        if: success()
         shell: pwsh
         run: |
-          $src = "build/windows/x64/runner/Release"
-          if (!(Test-Path $src)) { $src = "build/windows/runner/Release" }
+          $src = "build\windows\x64\runner\Release"
+          if (!(Test-Path $src)) { $src = "build\windows\runner\Release" }
           $zip = "pxy-windows.zip"
           if (Test-Path $zip) { Remove-Item $zip -Force }
           Compress-Archive -Path "$src\*" -DestinationPath $zip
           Get-ChildItem $zip
 
       - name: Upload artifact (zip)
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pxy-windows
           path: pxy-windows.zip
+          if-no-files-found: error
 
       - name: Upload build log
         if: always()
@@ -309,3 +123,4 @@ start "" "%~dp0$exe" --disable-impeller --enable-software-rendering
         with:
           name: pxy-windows-build-log
           path: build_windows.log
+          if-no-files-found: warn
