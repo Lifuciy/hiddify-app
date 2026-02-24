@@ -2,6 +2,11 @@ name: PXY Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build (branch/tag/sha)"
+        required: true
+        default: "pxy/activation-only"
 
 jobs:
   build-apk:
@@ -10,6 +15,7 @@ jobs:
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           submodules: recursive
           fetch-depth: 0
 
@@ -34,14 +40,8 @@ jobs:
       - name: Generate code (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Build AAB (same pipeline as android-aab)
-        run: |
-          if make -n android-aab >/dev/null 2>&1; then
-            make android-aab
-          else
-            echo "ERR: Makefile has no android-aab target" >&2
-            exit 1
-          fi
+      - name: Build AAB (project pipeline)
+        run: make android-aab
 
       - name: Convert AAB -> universal APK
         run: |
