@@ -61,35 +61,64 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.22.x"
-
       - name: Build hiddify-core DLL (Windows)
         shell: pwsh
         run: |
-          # 1) try official script if exists
-          if (Test-Path "hiddify-core\build_windows.bat") {
-            cmd /c "cd hiddify-core && build_windows.bat"
-          } elseif (Test-Path "hiddify-core\cmd.bat") {
-            cmd /c "cd hiddify-core && cmd.bat"
-          } else {
-            Write-Host "No build script found in hiddify-core"
-          }
-
-          # 2) normalize expected name/path for Flutter install step
           if (!(Test-Path "hiddify-core\bin")) { New-Item -ItemType Directory -Force -Path "hiddify-core\bin" | Out-Null }
 
-          if (!(Test-Path "hiddify-core\bin\hiddify-core.dll")) {
-            if (Test-Path "hiddify-core\bin\libcore.dll") {
-              Copy-Item "hiddify-core\bin\libcore.dll" "hiddify-core\bin\hiddify-core.dll" -Force
+          Write-Host "=== Inspect hiddify-core repo ==="
+          Get-ChildItem "hiddify-core" -Force | Select-Object Name
+          if (Test-Path "hiddify-core\cmd") { Get-ChildItem "hiddify-core\cmd" -Force | Select-Object Name }
+          if (Test-Path "hiddify-core\cli") { Get-ChildItem "hiddify-core\cli" -Force | Select-Object Name }
+          if (Test-Path "hiddify-core\go.mod") { Get-Content "hiddify-core\go.mod" -TotalCount 20 }
+
+          Write-Host "=== Try build c-shared DLL via go ==="
+          Push-Location hiddify-core
+
+          # Find a likely main/package to build as c-shared.
+          # We try in this order:
+          # 1) ./cmd/hiddify-core
+          # 2) ./cmd/core
+          # 3) ./cmd (single main)
+          # 4) ./ (fallback; may fail)
+          $candidates = @(
+            "cmd/hiddify-core",
+            "cmd/core",
+            "cmd"
+          )
+
+          $built = $false
+          foreach ($c in $candidates) {
+            $path = Join-Path (Get-Location) $c
+            if (Test-Path $path) {
+              try {
+                Write-Host "Trying: $c"
+                go env -w CGO_ENABLED=1 | Out-Null
+                # buildmode=c-shared produces .dll + .h
+                go build -buildmode=c-shared -o (Join-Path "..\hiddify-core\bin" "hiddify-core.dll") "./$c"
+                $built = $true
+                break
+              } catch {
+                Write-Host "Failed for $c"
+              }
             }
           }
 
-          # 3) hard fail if still missing (with directory listing)
+          if (-not $built) {
+            Write-Host "No candidate succeeded. Showing Go packages under cmd/:"
+            if (Test-Path "cmd") { Get-ChildItem "cmd" -Recurse -Directory -Force | Select-Object FullName }
+            throw "hiddify-core.dll build failed (no suitable package found)"
+          }
+
+          Pop-Location
+
           if (!(Test-Path "hiddify-core\bin\hiddify-core.dll")) {
-            Write-Host "=== hiddify-core\\bin ==="
+            Write-Host "=== hiddify-core\bin ==="
             Get-ChildItem "hiddify-core\bin" -Force | Format-List
             throw "hiddify-core.dll not found after build"
           }
 
+          Write-Host "OK: built hiddify-core\bin\hiddify-core.dll"
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
