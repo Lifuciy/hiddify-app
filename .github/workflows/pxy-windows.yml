@@ -166,6 +166,50 @@ jobs:
 
           Get-Item $p -Force | Format-List
 
+      - name: Fix hiddify-core bin paths (force files)
+
+        shell: pwsh
+
+        run: |
+
+          $ErrorActionPreference = "Stop"
+
+          $bin = "hiddify-core\bin"
+
+          if (!(Test-Path $bin)) { New-Item -ItemType Directory -Force -Path $bin | Out-Null }
+
+          $need = @("HiddifyCli.exe","libcronet.dll")
+
+          foreach ($f in $need) {
+
+            $p = Join-Path $bin $f
+
+            if (Test-Path $p) {
+
+              $it = Get-Item $p -Force
+
+              if ($it.PSIsContainer) {
+
+                Write-Host "$f is a DIRECTORY -> removing"
+
+                Remove-Item $p -Recurse -Force
+
+              }
+
+            }
+
+            if (!(Test-Path $p)) {
+
+              Write-Host "Creating placeholder $f"
+
+              New-Item -ItemType File -Path $p -Force | Out-Null
+
+            }
+
+            Get-Item $p -Force | Format-List
+
+          }
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:

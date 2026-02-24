@@ -73,6 +73,7 @@ set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 
 if (EXISTS "../hiddify-core/bin/libcronet.dll")
+if (EXISTS "../hiddify-core/bin/hiddify-core.dll" AND NOT IS_DIRECTORY "../hiddify-core/bin/hiddify-core.dll")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
@@ -84,16 +85,23 @@ install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
 
 # install(FILES "../hiddify-core/bin/hiddify-core.dll" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
 #  COMPONENT Runtime)
+endif()
 
+if (EXISTS "../hiddify-core/bin/hiddify-core.dll" AND NOT IS_DIRECTORY "../hiddify-core/bin/hiddify-core.dll")
 install(FILES "../hiddify-core/bin/hiddify-core.dll" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
 COMPONENT Runtime RENAME hiddify-core.dll)
+endif()
 
+if (EXISTS "../hiddify-core/bin/libcronet.dll" AND NOT IS_DIRECTORY "../hiddify-core/bin/libcronet.dll")
 install(FILES "../hiddify-core/bin/libcronet.dll" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
 COMPONENT Runtime RENAME libcronet.dll)
 endif()
+endif()
 
+if (EXISTS "../hiddify-core/bin/HiddifyCli.exe" AND NOT IS_DIRECTORY "../hiddify-core/bin/HiddifyCli.exe")
 install(FILES "../hiddify-core/bin/HiddifyCli.exe" DESTINATION "${CMAKE_INSTALL_PREFIX}"
 COMPONENT Runtime RENAME HiddifyCli.exe)
+endif()
 
 
 if(PLUGIN_BUNDLED_LIBRARIES)
