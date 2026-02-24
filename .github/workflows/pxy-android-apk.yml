@@ -20,21 +20,13 @@ jobs:
 
       - name: Rewrite submodule URLs to HTTPS + fetch
         run: |
-          # 1) rewrite root .gitmodules (if any)
-          if [ -f .gitmodules ]; then
-            sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
-            sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
-            git submodule sync --recursive
-          fi
+          # Force SSH-style GitHub URLs to HTTPS (works for nested submodules too)
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "ssh://github.com/"
 
-          # 2) init FIRST LEVEL only (no --recursive yet)
-          git submodule update --init
-
-          # 3) rewrite nested .gitmodules (inside cloned submodules)
-          find . -name .gitmodules -print -exec sed -i 's#ssh://git@github.com/#https://github.com/#g' {} \; -exec sed -i 's#git@github.com:#https://github.com/#g' {} \;
-
-          # 4) sync + full recursive init
-          git submodule sync --recursive
+          # Fetch submodules (recursive)
+          git submodule sync --recursive || true
           git submodule update --init --recursive
 
       - name: Install deps
