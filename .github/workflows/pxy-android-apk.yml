@@ -23,27 +23,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          rewrite_gitmodules () {
-            local f="$1"
-            test -f "$f" || return 0
-            sed -i 's#ssh://git@github.com/#https://github.com/#g' "$f"
-            sed -i 's#ssh://github.com/#https://github.com/#g' "$f"
-            sed -i 's#git@github.com:#https://github.com/#g' "$f"
-            sed -i 's#git@github.com/#https://github.com/#g' "$f"
-          }
+          # Force ANY GitHub SSH-style URLs to HTTPS (works for nested submodules too)
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "ssh://github.com/"
 
-          # 1) rewrite root .gitmodules BEFORE any init
-          rewrite_gitmodules ".gitmodules"
-          git submodule sync --recursive || true
-
-          # 2) init first level only (so nested .gitmodules appear)
-          git submodule update --init
-
-          # 3) rewrite ALL nested .gitmodules that now exist
-          while IFS= read -r -d '' gm; do
-            rewrite_gitmodules "$gm"
-          done < <(find . -name .gitmodules -print0)
-
+          # Now recursive submodule init works without SSH keys
           git submodule sync --recursive || true
           git submodule update --init --recursive
 
