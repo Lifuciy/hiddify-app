@@ -18,32 +18,45 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: Fetch submodules (force HTTPS, incl nested)
+      - name: Fetch submodules (level-by-level, force HTTPS)
         shell: bash
         run: |
           set -euo pipefail
 
-          # 1) глобально заменить GitHub SSH URL -> HTTPS (работает даже для глубочайших сабмодулей)
+          # Global rewrite: any GitHub SSH-style URL -> HTTPS
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "ssh://github.com/"
 
-          # 2) насильно переписать корневой .gitmodules (чтобы даже "registered" был https)
-          if [ -f .gitmodules ]; then
-            echo "BEFORE .gitmodules:"; cat .gitmodules
-            sed -i 's#ssh://git@github.com/#https://github.com/#g' .gitmodules
-            sed -i 's#git@github.com:#https://github.com/#g' .gitmodules
-            echo "AFTER  .gitmodules:"; cat .gitmodules
-          fi
+          fix_file () {
+            local f="$1"
+            [ -f "$f" ] || return 0
+            sed -i 's#ssh://git@github.com/#https://github.com/#g' "$f"
+            sed -i 's#ssh://github.com/#https://github.com/#g' "$f"
+            sed -i 's#git@github.com:#https://github.com/#g' "$f"
+            sed -i 's#git@github.com/#https://github.com/#g' "$f"
+          }
 
-          # 3) синк и первый уровень
+          # ROOT: rewrite + sync
+          fix_file .gitmodules
           git submodule sync --recursive || true
-          git submodule update --init
 
-          # 4) переписать все вложенные .gitmodules, которые появились после init
-          find . -name .gitmodules -print -exec sed -i 's#ssh://git@github.com/#https://github.com/#g' {} \; -exec sed -i 's#git@github.com:#https://github.com/#g' {} \;
+          # Level 1: clone only hiddify-core
+          git submodule update --init hiddify-core
 
-          # 5) полный recursive
+          # Level 2: rewrite hiddify-core/.gitmodules then init its direct submodules (sing-box, ray2sing, etc)
+          fix_file hiddify-core/.gitmodules
+          (cd hiddify-core && git submodule sync --recursive || true && git submodule update --init)
+
+          # Level 3: rewrite sing-box .gitmodules then init its direct submodules (replace/*)
+          fix_file hiddify-core/hiddify-sing-box/.gitmodules
+          (cd hiddify-core/hiddify-sing-box && git submodule sync --recursive || true && git submodule update --init)
+
+          # Final pass: rewrite ANY remaining .gitmodules and fully recurse
+          while IFS= read -r -d '' gm; do
+            fix_file "$gm"
+          done < <(find . -name .gitmodules -print0)
+
           git submodule sync --recursive || true
           git submodule update --init --recursive
 
