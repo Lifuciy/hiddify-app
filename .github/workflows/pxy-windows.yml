@@ -274,6 +274,45 @@ jobs:
 
           Get-ChildItem $rel | Select-Object Name,Length | Format-Table -AutoSize
 
+
+      - name: Add run_safe.bat (console start + flags)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $out = "build\windows\x64\runner\Release"
+          if (!(Test-Path $out)) { throw "Release dir not found: $out" }
+
+          $exe = (Get-ChildItem $out -Filter *.exe | Select-Object -First 1).Name
+          if (-not $exe) { throw "No .exe found in $out" }
+
+          $bat = "@echo off`r`ncd /d %~dp0`r`n%~dp0$exe --disable-impeller --enable-software-rendering`r`npause`r`n"
+          Set-Content -Path (Join-Path $out "run_safe.bat") -Value $bat -Encoding ASCII
+
+          Write-Host "OK: run_safe.bat created for $exe"
+
+      - name: Bundle MinGW runtime DLLs (for hiddify-core.dll / HiddifyCli.exe)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          $mingw = "C:\msys64\mingw64\bin"
+          $out   = "build\windows\x64\runner\Release"
+
+          if (!(Test-Path $out)) { throw "Release dir not found: $out" }
+
+          $deps = @("libgcc_s_seh-1.dll","libstdc++-6.dll","libwinpthread-1.dll")
+          foreach ($d in $deps) {
+            $src = Join-Path $mingw $d
+            $dst = Join-Path $out $d
+            if (Test-Path $src) {
+              Copy-Item $src $dst -Force
+              Write-Host "Copied $d"
+            } else {
+              Write-Host "WARN: not found in mingw: $src"
+            }
+          }
+
+          Write-Host "Release dir DLL snapshot:"
+          Get-ChildItem $out -Filter *.dll | Select-Object Name,Length | Format-Table -AutoSize
       - name: Pack release to zip
         if: success()
         shell: pwsh
