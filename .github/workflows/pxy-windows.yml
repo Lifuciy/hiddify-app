@@ -125,37 +125,6 @@ jobs:
             Get-ChildItem "hiddify-core\bin" -Force | Format-List
             throw "hiddify-core.dll not created"
           }
-      - name: Ensure libcronet.dll (from hiddify-core release)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $bin = "hiddify-core\bin"
-          if (!(Test-Path $bin)) { New-Item -ItemType Directory -Force -Path $bin | Out-Null }
-          if (Test-Path "$bin\libcronet.dll") { Write-Host "OK: libcronet.dll already exists"; exit 0 }
-
-          $headers = @{ "User-Agent" = "pxy-windows-ci" }
-          $rel = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/hiddify/hiddify-core/releases/latest"
-          $asset = $rel.assets | Where-Object { $_.name -match 'windows' -and $_.name -match '\.zip$' } | Select-Object -First 1
-          if (-not $asset) { throw "No Windows .zip asset found in hiddify-core latest release" }
-
-          $tmp = "core_release_tmp"
-          if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
-          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-
-          $file = Join-Path $tmp $asset.name
-          Invoke-WebRequest -Headers $headers -Uri $asset.browser_download_url -OutFile $file
-          Expand-Archive -Path $file -DestinationPath $tmp -Force
-
-          $found = Get-ChildItem $tmp -Recurse -Filter "libcronet.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $found) {
-            Write-Host "Files in tmp (top 200):"
-            Get-ChildItem $tmp -Recurse -File | Select-Object -First 200 FullName
-            throw "libcronet.dll not found inside release asset"
-          }
-
-          Copy-Item $found.FullName "$bin\libcronet.dll" -Force
-          Write-Host "OK: copied libcronet.dll -> $bin\libcronet.dll"
-          Get-ChildItem $bin -Force
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
