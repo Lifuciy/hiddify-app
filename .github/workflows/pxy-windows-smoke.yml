@@ -1,0 +1,25 @@
+name: PXY Windows Smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Set-Content -Path dist\README.txt -Value "ok"
+          Compress-Archive -Path dist\* -DestinationPath pxy-windows.zip -Force
+          if (!(Test-Path pxy-windows.zip)) { throw "zip not created" }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pxy-windows
+          path: pxy-windows.zip
