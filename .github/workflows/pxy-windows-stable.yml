@@ -1,0 +1,81 @@
+name: PXY Windows (Stable)
+
+"on":
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Force HTTPS for submodules
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git submodule sync --recursive
+          git submodule update --init --recursive --depth 1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Build Windows (capture log)
+        id: build_win
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = "Continue"
+          flutter build windows --release 2>&1 | Tee-Object -FilePath build_windows.log
+          if ($LASTEXITCODE -ne 0) {
+            "BUILD_FAILED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          } else {
+            "BUILD_FAILED=0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
+
+      - name: Package (always)
+        if: always()
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+
+          # put launchers into dist
+          if (Test-Path "ci\windows\run_start.bat") { Copy-Item "ci\windows\run_start.bat" "dist\run_start.bat" -Force }
+          if (Test-Path "ci\windows\run_safe.bat")  { Copy-Item "ci\windows\run_safe.bat"  "dist\run_safe.bat"  -Force }
+
+          $releaseDir = "build\windows\x64\runner\Release"
+          if (Test-Path $releaseDir) {
+            Copy-Item -Recurse -Force "$releaseDir\*" "dist\"
+            Set-Content -Path "dist\README.txt" -Value "ok"
+          } else {
+            Set-Content -Path "dist\README.txt" -Value "build failed - see build_windows.log"
+          }
+
+          if (Test-Path "build_windows.log") { Copy-Item "build_windows.log" "dist\build_windows.log" -Force }
+
+          Compress-Archive -Path dist\* -DestinationPath pxy-windows.zip -Force
+          if (!(Test-Path pxy-windows.zip)) { throw "zip not created" }
+
+      - name: Upload artifact (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pxy-windows
+          path: pxy-windows.zip
+
+      - name: Fail job if build failed (after artifact)
+        if: always()
+        run: |
+          if ($env:BUILD_FAILED -eq "1") { throw "Build failed (artifact uploaded with logs)" }
