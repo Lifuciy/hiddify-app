@@ -69,10 +69,16 @@ jobs:
           # ensure Flutter runtime dll is packaged
           if ($env:BUILD_FAILED -eq "0") {
             if (!(Test-Path "dist\flutter_windows.dll")) {
-              $fw = Get-ChildItem -Path "build\windows\x64" -Recurse -Filter "flutter_windows.dll" | Select-Object -First 1
+              $fw = Get-ChildItem -Path "build\windows\x64" -Recurse -Filter "flutter_windows.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
               if ($fw) { Copy-Item $fw.FullName "dist\flutter_windows.dll" -Force }
             }
-            if (!(Test-Path "dist\flutter_windows.dll")) { throw "flutter_windows.dll not found in packaged app" }
+
+            if (!(Test-Path "dist\flutter_windows.dll")) {
+              $engineDll = Join-Path $env:FLUTTER_ROOT "bin\cache\artifacts\engine\windows-x64-release\flutter_windows.dll"
+              if (Test-Path $engineDll) { Copy-Item $engineDll "dist\flutter_windows.dll" -Force }
+            }
+
+            if (!(Test-Path "dist\flutter_windows.dll")) { throw "flutter_windows.dll not found in build output or Flutter SDK" }
           }
 
           if (Test-Path "build_windows.log") { Copy-Item "build_windows.log" "dist\build_windows.log" -Force }
