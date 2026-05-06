@@ -34,6 +34,9 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
+      - name: Generate code (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Build Windows (capture log)
         id: build_win
         continue-on-error: true
