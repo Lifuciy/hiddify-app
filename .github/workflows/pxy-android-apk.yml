@@ -24,9 +24,9 @@ jobs:
           set -euo pipefail
 
           # Global rewrite: any GitHub SSH-style URL -> HTTPS
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-          git config --global url."https://github.com/".insteadOf "ssh://github.com/"
+          git config --global --add url."https://github.com/".insteadOf "git@github.com:"
+          git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global --add url."https://github.com/".insteadOf "ssh://github.com/"
 
           fix_file () {
             local f="$1"
