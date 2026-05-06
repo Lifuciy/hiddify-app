@@ -66,6 +66,15 @@ jobs:
             Set-Content -Path "dist\README.txt" -Value "build failed - see build_windows.log"
           }
 
+          # ensure Flutter runtime dll is packaged
+          if ($env:BUILD_FAILED -eq "0") {
+            if (!(Test-Path "dist\flutter_windows.dll")) {
+              $fw = Get-ChildItem -Path "build\windows\x64" -Recurse -Filter "flutter_windows.dll" | Select-Object -First 1
+              if ($fw) { Copy-Item $fw.FullName "dist\flutter_windows.dll" -Force }
+            }
+            if (!(Test-Path "dist\flutter_windows.dll")) { throw "flutter_windows.dll not found in packaged app" }
+          }
+
           if (Test-Path "build_windows.log") { Copy-Item "build_windows.log" "dist\build_windows.log" -Force }
 
           Compress-Archive -Path dist\* -DestinationPath pxy-windows.zip -Force
