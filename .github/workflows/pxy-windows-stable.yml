@@ -68,15 +68,22 @@ jobs:
           Remove-Item -Force -ErrorAction SilentlyContinue "bin\hiddify-core.dll","bin\HiddifyCli.exe"
 
           $env:CGO_LDFLAGS = ""
-          go build -trimpath -tags "with_gvisor,with_quic,with_wireguard,with_ech,with_utls,with_clash_api,with_grpc" -ldflags="-w -s" -buildmode=c-shared -o "bin\hiddify-core.dll" ./custom
+          go build -v -trimpath -tags "with_gvisor,with_quic,with_wireguard,with_ech,with_utls,with_clash_api,with_grpc" -ldflags="-w -s" -buildmode=c-shared -o "bin\hiddify-core.dll" ./platform/desktop
+          if ($LASTEXITCODE -ne 0) { throw "failed to build hiddify-core.dll" }
+          if (!(Test-Path "bin\hiddify-core.dll")) { throw "bin\hiddify-core.dll was not created" }
 
           go install github.com/akavel/rsrc@latest
-          rsrc -ico ".\assets\hiddify-cli.ico" -o "cli\bydll\cli.syso"
+          if ($LASTEXITCODE -ne 0) { throw "failed to install rsrc" }
+
+          rsrc -ico ".\assets\hiddify-cli.ico" -o "cmd\bydll\cli.syso"
+          if ($LASTEXITCODE -ne 0) { throw "failed to generate cmd\bydll\cli.syso" }
 
           Copy-Item "bin\hiddify-core.dll" ".\hiddify-core.dll" -Force
           $env:CGO_LDFLAGS = "hiddify-core.dll"
-          go build -trimpath -ldflags="-w -s" -o "bin\HiddifyCli.exe" ./cli/bydll/
+          go build -v -trimpath -ldflags="-w -s" -o "bin\HiddifyCli.exe" ./cmd/bydll/
+          if ($LASTEXITCODE -ne 0) { throw "failed to build HiddifyCli.exe" }
           Remove-Item ".\hiddify-core.dll" -Force
+          if (!(Test-Path "bin\HiddifyCli.exe")) { throw "bin\HiddifyCli.exe was not created" }
 
           Get-ChildItem "bin" -Force
           Pop-Location
