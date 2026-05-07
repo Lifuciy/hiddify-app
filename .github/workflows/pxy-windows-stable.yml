@@ -37,6 +37,50 @@ jobs:
       - name: Generate code (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: hiddify-core/go.mod
+          cache: true
+          cache-dependency-path: hiddify-core/go.sum
+
+      - name: Setup MSYS2 MinGW
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+
+      - name: Build hiddify-core binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $mingwBin = "C:\msys64\mingw64\bin"
+          $env:PATH = "$mingwBin;$env:PATH"
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          $env:CGO_ENABLED = "1"
+          $env:CC = Join-Path $mingwBin "gcc.exe"
+
+          New-Item -ItemType Directory -Force "hiddify-core\bin" | Out-Null
+          Push-Location "hiddify-core"
+
+          Remove-Item -Force -ErrorAction SilentlyContinue "bin\hiddify-core.dll","bin\HiddifyCli.exe"
+
+          $env:CGO_LDFLAGS = ""
+          go build -trimpath -tags "with_gvisor,with_quic,with_wireguard,with_ech,with_utls,with_clash_api,with_grpc" -ldflags="-w -s" -buildmode=c-shared -o "bin\hiddify-core.dll" ./custom
+
+          go install github.com/akavel/rsrc@latest
+          rsrc -ico ".\assets\hiddify-cli.ico" -o "cli\bydll\cli.syso"
+
+          Copy-Item "bin\hiddify-core.dll" ".\hiddify-core.dll" -Force
+          $env:CGO_LDFLAGS = "hiddify-core.dll"
+          go build -trimpath -ldflags="-w -s" -o "bin\HiddifyCli.exe" ./cli/bydll/
+          Remove-Item ".\hiddify-core.dll" -Force
+
+          Get-ChildItem "bin" -Force
+          Pop-Location
+
       - name: Build Windows (capture log)
         id: build_win
         continue-on-error: true
