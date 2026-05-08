@@ -149,6 +149,25 @@ jobs:
             }
 
             if (!(Test-Path "dist\flutter_windows.dll")) { throw "flutter_windows.dll not found in build output or Flutter SDK" }
+
+            if (!(Test-Path "dist\data")) {
+              New-Item -ItemType Directory -Force "dist\data" | Out-Null
+            }
+
+            if (!(Test-Path "dist\data\icudtl.dat")) {
+              $icu = Get-ChildItem -Path "build\windows\x64" -Recurse -Filter "icudtl.dat" -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($icu) { Copy-Item $icu.FullName "dist\data\icudtl.dat" -Force }
+            }
+
+            if (!(Test-Path "dist\data\icudtl.dat")) {
+              $engineDir = Join-Path $env:FLUTTER_ROOT "bin\cache\artifacts\engine"
+              $icu = Get-ChildItem -Path $engineDir -Recurse -Filter "icudtl.dat" -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($icu) { Copy-Item $icu.FullName "dist\data\icudtl.dat" -Force }
+            }
+
+            if (!(Test-Path "dist\data\icudtl.dat")) {
+              throw "icudtl.dat not found in build output or Flutter SDK"
+            }
           }
 
           if (Test-Path "build_windows.log") { Copy-Item "build_windows.log" "dist\build_windows.log" -Force }
