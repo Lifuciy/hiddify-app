@@ -72,7 +72,7 @@ jobs:
           Remove-Item -Force -ErrorAction SilentlyContinue "bin\hiddify-core.dll","bin\HiddifyCli.exe"
 
           $env:CGO_LDFLAGS = ""
-          go build -v -trimpath -tags "with_gvisor,with_quic,with_wireguard,with_ech,with_utls,with_clash_api,with_grpc" -ldflags="-w -s" -buildmode=c-shared -o "bin\hiddify-core.dll" ./platform/desktop
+          go build -v -trimpath -tags "with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api,with_grpc" -ldflags="-w -s" -buildmode=c-shared -o "bin\hiddify-core.dll" ./platform/desktop
           if ($LASTEXITCODE -ne 0) { throw "failed to build hiddify-core.dll" }
           if (!(Test-Path "bin\hiddify-core.dll")) { throw "bin\hiddify-core.dll was not created" }
 
