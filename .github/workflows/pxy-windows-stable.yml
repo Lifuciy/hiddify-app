@@ -49,18 +49,22 @@ jobs:
         with:
           msystem: MINGW64
           update: false
+          path-type: inherit
           install: mingw-w64-x86_64-gcc
 
       - name: Build hiddify-core binaries
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $mingwBin = "C:\msys64\mingw64\bin"
+          $gccCmd = Get-Command gcc.exe -ErrorAction Stop
+          $env:CC = $gccCmd.Source
+          $mingwBin = Split-Path $env:CC
           $env:PATH = "$mingwBin;$env:PATH"
+          Write-Host "Using GCC: $env:CC"
+
           $env:GOOS = "windows"
           $env:GOARCH = "amd64"
           $env:CGO_ENABLED = "1"
-          $env:CC = Join-Path $mingwBin "gcc.exe"
 
           New-Item -ItemType Directory -Force "hiddify-core\bin" | Out-Null
           Push-Location "hiddify-core"
