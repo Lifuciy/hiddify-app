@@ -7,6 +7,8 @@ import 'package:gap/gap.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 class PxyActivationPanel extends ConsumerStatefulWidget {
   const PxyActivationPanel({super.key});
@@ -55,13 +57,24 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
       );
 
       final code = _codeController.text.trim();
+      if (code.isEmpty) {
+        throw Exception('Введите код активации');
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      var deviceId = prefs.getString('pxy_device_id');
+      if (deviceId == null || deviceId.isEmpty) {
+        deviceId = const Uuid().v4();
+        await prefs.setString('pxy_device_id', deviceId);
+      }
 
       final response = await dio.post(
         _activationUrl,
         data: <String, dynamic>{
+          'code': code,
+          'device_id': deviceId,
           'client': 'PXY Windows',
           'platform': defaultTargetPlatform.name,
-          if (code.isNotEmpty) 'activation_code': code,
         },
       );
 
