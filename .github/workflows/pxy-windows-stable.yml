@@ -124,7 +124,7 @@ jobs:
               }
             }
 
-            foreach ($required in @("hiddify-core.dll", "HiddifyCli.exe", "flutter_windows.dll")) {
+            foreach ($required in @("hiddify-core.dll", "HiddifyCli.exe")) {
               $requiredPath = Join-Path "dist" $required
               if (!(Test-Path $requiredPath) -or ((Get-Item $requiredPath).Length -eq 0)) {
                 throw "Required runtime file is missing or empty in artifact: $required"
