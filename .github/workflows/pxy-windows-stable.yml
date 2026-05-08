@@ -2,6 +2,11 @@ name: PXY Windows (Stable)
 
 "on":
   workflow_dispatch:
+    inputs:
+      pxy_activation_url:
+        description: "PXY activation API URL"
+        required: false
+        default: ""
 
 jobs:
   build:
@@ -97,7 +102,11 @@ jobs:
         continue-on-error: true
         run: |
           $ErrorActionPreference = "Continue"
-          flutter build windows --release 2>&1 | Tee-Object -FilePath build_windows.log
+          $defineArgs = @()
+          if ("${{ inputs.pxy_activation_url }}" -ne "") {
+            $defineArgs += "--dart-define=PXY_ACTIVATION_URL=${{ inputs.pxy_activation_url }}"
+          }
+          flutter build windows --release @defineArgs 2>&1 | Tee-Object -FilePath build_windows.log
           if ($LASTEXITCODE -ne 0) {
             "BUILD_FAILED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           } else {
