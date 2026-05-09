@@ -179,28 +179,30 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
                   style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
                 ),
               ],
-              const Gap(12),
-              TextField(
-                controller: _codeController,
-                enabled: !_loading,
-                decoration: const InputDecoration(
-                  labelText: 'Код активации',
-                  hintText: 'Например: код из Telegram-бота',
-                  border: OutlineInputBorder(),
+              if (activeProfile == null) ...[
+                const Gap(12),
+                TextField(
+                  controller: _codeController,
+                  enabled: !_loading,
+                  decoration: const InputDecoration(
+                    labelText: 'Код активации',
+                    hintText: 'Например: код из Telegram-бота',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const Gap(12),
-              FilledButton.icon(
-                onPressed: _loading ? null : _activate,
-                icon: _loading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.download_done_rounded),
-                label: Text(_loading ? 'Активация...' : 'Активировать PXY'),
-              ),
+                const Gap(12),
+                FilledButton.icon(
+                  onPressed: _loading ? null : _activate,
+                  icon: _loading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_done_rounded),
+                  label: Text(_loading ? 'Активация...' : 'Активировать PXY'),
+                ),
+              ],
               if (_message != null) ...[
                 const Gap(8),
                 Text(
