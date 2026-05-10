@@ -5,7 +5,6 @@ import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/pxy/activation/pxy_activation_panel.dart';
-import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart';
 import 'package:hiddify/gen/assets.gen.dart';
@@ -20,7 +19,6 @@ class HomePage extends HookConsumerWidget {
     final theme = Theme.of(context);
     final t = ref.watch(translationsProvider).requireValue;
     // final hasAnyProfile = ref.watch(hasAnyProfileProvider);
-    final activeProfile = ref.watch(activeProfileProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -80,31 +78,7 @@ class HomePage extends HookConsumerWidget {
                           child: PxyActivationPanel(),
                         ),
                         // const Gap(100),
-                        switch (activeProfile) {
-                          AsyncData(value: final _?) => SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              child: Card(
-                                color: Theme.of(context).colorScheme.surfaceContainer,
-                                child: const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "PXY готов к подключению",
-                                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                      ),
-                                      Gap(6),
-                                      Text("Профиль активирован. Нажмите кнопку подключения ниже."),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          _ => const SliverToBoxAdapter(child: SizedBox.shrink()),
-                        },
+                        // PXY status and subscription info are shown in PxyActivationPanel.
                         const SliverFillRemaining(
                           hasScrollBody: false,
                           child: Column(

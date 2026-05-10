@@ -286,6 +286,7 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
     final theme = Theme.of(context);
     final activeProfile = ref.watch(activeProfileProvider).valueOrNull;
     final isConfigured = _activationUrl.trim().isNotEmpty;
+    final needsActivationCode = activeProfile == null || _subscription == null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -299,12 +300,14 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
               Row(
                 children: [
                   Icon(
-                    activeProfile == null ? Icons.vpn_key_rounded : Icons.verified_rounded,
+                    needsActivationCode ? Icons.vpn_key_rounded : Icons.verified_rounded,
                     color: theme.colorScheme.primary,
                   ),
                   const Gap(8),
                   Text(
-                    activeProfile == null ? 'Активация PXY' : 'PXY активирован',
+                    activeProfile == null
+                        ? 'Активация PXY'
+                        : (_subscription == null ? 'Обновите данные подписки' : 'PXY активирован'),
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ],
@@ -313,7 +316,9 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
               Text(
                 activeProfile == null
                     ? 'Введите код активации, чтобы получить ваш VLESS+Reality профиль.'
-                    : 'Активный профиль уже выбран. Можно подключаться.',
+                    : (_subscription == null
+                        ? 'Профиль уже активен, но данные подписки ещё не загружены. Введите новый код из Telegram-бота.'
+                        : 'Активный профиль выбран. Можно подключаться.'),
                 style: theme.textTheme.bodyMedium,
               ),
               if (!isConfigured) ...[
@@ -327,7 +332,7 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
                 const Gap(12),
                 _subscriptionInfo(context),
               ],
-              if (activeProfile == null) ...[
+              if (needsActivationCode) ...[
                 const Gap(12),
                 TextField(
                   controller: _codeController,
@@ -348,7 +353,11 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.download_done_rounded),
-                  label: Text(_loading ? 'Активация...' : 'Активировать PXY'),
+                  label: Text(
+                    _loading
+                        ? 'Активация...'
+                        : (activeProfile == null ? 'Активировать PXY' : 'Обновить данные подписки'),
+                  ),
                 ),
               ],
               if (_message != null) ...[
