@@ -18,6 +18,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Init build status
+        run: |
+          "BUILD_FAILED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "BUILD_REACHED=0" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Force HTTPS for submodules
         shell: bash
         run: |
@@ -102,6 +107,7 @@ jobs:
         continue-on-error: true
         run: |
           $ErrorActionPreference = "Continue"
+          "BUILD_REACHED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           $defineArgs = @()
           if ("${{ inputs.pxy_activation_url }}" -ne "") {
             $defineArgs += "--dart-define=PXY_ACTIVATION_URL=${{ inputs.pxy_activation_url }}"
@@ -142,7 +148,8 @@ jobs:
 
             Set-Content -Path "dist\README.txt" -Value "ok"
           } else {
-            Set-Content -Path "dist\README.txt" -Value "build failed - see build_windows.log"
+            "BUILD_FAILED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            Set-Content -Path "dist\README.txt" -Value "build failed - release dir not found - see build_windows.log"
           }
 
           # ensure Flutter runtime dll is packaged
@@ -194,4 +201,5 @@ jobs:
       - name: Fail job if build failed (after artifact)
         if: always()
         run: |
-          if ($env:BUILD_FAILED -eq "1") { throw "Build failed (artifact uploaded with logs)" }
+          if ($env:BUILD_REACHED -ne "1") { throw "Build Windows step was not reached (artifact uploaded with logs)" }
+          if ($env:BUILD_FAILED -ne "0") { throw "Build failed (artifact uploaded with logs)" }
