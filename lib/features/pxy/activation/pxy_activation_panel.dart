@@ -27,6 +27,7 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
   String? _error;
   Map<String, dynamic>? _subscription;
   int? _refreshAfterSec;
+  bool _forceRefreshCode = false;
 
   @override
   void initState() {
@@ -138,11 +139,16 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
         throw Exception('В ответе API не найден vless:// ключ');
       }
 
-      await ref.read(addProfileNotifierProvider.notifier).addClipboard(vless);
+      final activeProfile = ref.read(activeProfileProvider).valueOrNull;
+      final shouldImportProfile = activeProfile == null;
 
-      final importState = ref.read(addProfileNotifierProvider);
-      if (importState.hasError) {
-        throw importState.error ?? Exception('Не удалось импортировать профиль');
+      if (shouldImportProfile) {
+        await ref.read(addProfileNotifierProvider.notifier).addClipboard(vless);
+
+        final importState = ref.read(addProfileNotifierProvider);
+        if (importState.hasError) {
+          throw importState.error ?? Exception('Не удалось импортировать профиль');
+        }
       }
 
       Map<String, dynamic>? subscription;
@@ -159,12 +165,17 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
         await prefs.setInt('pxy_refresh_after_sec', refreshAfterSec);
       }
 
-      ref.invalidate(activeProfileProvider);
+      if (shouldImportProfile) {
+        ref.invalidate(activeProfileProvider);
+      }
 
       setState(() {
         _subscription = subscription ?? _subscription;
         _refreshAfterSec = refreshAfterSec ?? _refreshAfterSec;
-        _message = 'PXY активирован. Профиль добавлен и выбран активным.';
+        _forceRefreshCode = false;
+        _message = shouldImportProfile
+            ? 'PXY активирован. Профиль добавлен и выбран активным.'
+            : 'Данные подписки обновлены.';
       });
     } catch (error) {
       setState(() {
@@ -255,6 +266,25 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
     );
   }
 
+  Widget _subscriptionActions(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: OutlinedButton.icon(
+        onPressed: _loading
+            ? null
+            : () {
+                setState(() {
+                  _forceRefreshCode = true;
+                  _message = 'Введите новый код из Telegram-бота, чтобы обновить данные подписки.';
+                  _error = null;
+                });
+              },
+        icon: const Icon(Icons.refresh_rounded),
+        label: const Text('Обновить данные подписки'),
+      ),
+    );
+  }
+
   Widget _infoRow(BuildContext context, String label, String value) {
     final theme = Theme.of(context);
 
@@ -286,7 +316,7 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
     final theme = Theme.of(context);
     final activeProfile = ref.watch(activeProfileProvider).valueOrNull;
     final isConfigured = _activationUrl.trim().isNotEmpty;
-    final needsActivationCode = activeProfile == null || _subscription == null;
+    final needsActivationCode = activeProfile == null || _subscription == null || _forceRefreshCode;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -331,6 +361,8 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
               if (activeProfile != null && _subscription != null) ...[
                 const Gap(12),
                 _subscriptionInfo(context),
+                const Gap(12),
+                _subscriptionActions(context),
               ],
               if (needsActivationCode) ...[
                 const Gap(12),
