@@ -25,6 +25,41 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
   bool _loading = false;
   String? _message;
   String? _error;
+  Map<String, dynamic>? _subscription;
+  int? _refreshAfterSec;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStoredSubscription();
+  }
+
+  Future<void> _loadStoredSubscription() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('pxy_subscription_json');
+    final refreshAfterSec = prefs.getInt('pxy_refresh_after_sec');
+
+    if (!mounted) return;
+
+    if (raw == null || raw.isEmpty) {
+      setState(() {
+        _refreshAfterSec = refreshAfterSec;
+      });
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        setState(() {
+          _subscription = Map<String, dynamic>.from(decoded);
+          _refreshAfterSec = refreshAfterSec;
+        });
+      }
+    } catch (_) {
+      await prefs.remove('pxy_subscription_json');
+    }
+  }
 
   @override
   void dispose() {
@@ -110,9 +145,25 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
         throw importState.error ?? Exception('Не удалось импортировать профиль');
       }
 
+      Map<String, dynamic>? subscription;
+      final subscriptionRaw = data['subscription'];
+      if (subscriptionRaw is Map) {
+        subscription = Map<String, dynamic>.from(subscriptionRaw);
+        await prefs.setString('pxy_subscription_json', jsonEncode(subscription));
+      }
+
+      final refreshRaw = data['refresh_after_sec'];
+      int? refreshAfterSec;
+      if (refreshRaw is int) {
+        refreshAfterSec = refreshRaw;
+        await prefs.setInt('pxy_refresh_after_sec', refreshAfterSec);
+      }
+
       ref.invalidate(activeProfileProvider);
 
       setState(() {
+        _subscription = subscription ?? _subscription;
+        _refreshAfterSec = refreshAfterSec ?? _refreshAfterSec;
         _message = 'PXY активирован. Профиль добавлен и выбран активным.';
       });
     } catch (error) {
@@ -135,6 +186,99 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
       return error.message ?? error.toString();
     }
     return error.toString().replaceFirst('Exception: ', '');
+  }
+
+  String _subValue(String key) {
+    final value = _subscription?[key];
+    if (value == null) return '—';
+    return value.toString();
+  }
+
+  String _formatExpiresAt() {
+    final iso = _subscription?['expires_at_iso'];
+    if (iso is String && iso.isNotEmpty) {
+      final dt = DateTime.tryParse(iso);
+      if (dt != null) {
+        final local = dt.toLocal();
+        final day = local.day.toString().padLeft(2, '0');
+        final month = local.month.toString().padLeft(2, '0');
+        final year = local.year.toString();
+        final hour = local.hour.toString().padLeft(2, '0');
+        final minute = local.minute.toString().padLeft(2, '0');
+        return '$day.$month.$year $hour:$minute';
+      }
+      return iso;
+    }
+
+    final expiresMs = _subscription?['expires_at_ms'];
+    if (expiresMs is int && expiresMs > 0) {
+      final local = DateTime.fromMillisecondsSinceEpoch(expiresMs).toLocal();
+      final day = local.day.toString().padLeft(2, '0');
+      final month = local.month.toString().padLeft(2, '0');
+      final year = local.year.toString();
+      final hour = local.hour.toString().padLeft(2, '0');
+      final minute = local.minute.toString().padLeft(2, '0');
+      return '$day.$month.$year $hour:$minute';
+    }
+
+    return '—';
+  }
+
+  Widget _subscriptionInfo(BuildContext context) {
+    final theme = Theme.of(context);
+    final daysLeft = _subValue('days_left');
+    final refreshText = _refreshAfterSec == null ? '—' : '${(_refreshAfterSec! / 60).round()} мин.';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Информация о подписке',
+            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const Gap(8),
+          _infoRow(context, 'Статус', _subValue('status') == 'active' ? 'Активна' : _subValue('status')),
+          _infoRow(context, 'Telegram ID', _subValue('tg_id')),
+          _infoRow(context, 'Порт', _subValue('port')),
+          _infoRow(context, 'Действует до', _formatExpiresAt()),
+          _infoRow(context, 'Осталось дней', daysLeft),
+          _infoRow(context, 'Обновление ключа', refreshText),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(BuildContext context, String label, String value) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+          const Gap(12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -178,6 +322,10 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
                   'API URL не задан в сборке.',
                   style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
                 ),
+              ],
+              if (activeProfile != null && _subscription != null) ...[
+                const Gap(12),
+                _subscriptionInfo(context),
               ],
               if (activeProfile == null) ...[
                 const Gap(12),
