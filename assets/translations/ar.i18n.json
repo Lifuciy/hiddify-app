@@ -1,6 +1,6 @@
 {
   "common": {
-    "appTitle": "Hiddify",
+    "appTitle": "PXY",
     "start": "ابدأ",
     "version": "الإصدار",
     "ok": "موافق",
@@ -427,7 +427,6 @@
         },
         "mixedPort": "منفذ مختلط",
         "tproxyPort": "منفذ البروكسي الشفاف",
-        
         "allowConnectionFromLan": "مشاركة VPN على الشبكة المحلية"
       },
       "tlsTricks": {
