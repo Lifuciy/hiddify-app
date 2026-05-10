@@ -5,6 +5,7 @@ import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/pxy/activation/pxy_activation_panel.dart';
+import 'package:hiddify/features/pxy/traffic/pxy_traffic_rules_panel.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart';
 import 'package:hiddify/gen/assets.gen.dart';
@@ -76,6 +77,9 @@ class HomePage extends HookConsumerWidget {
                       children: [
                         const SliverToBoxAdapter(
                           child: PxyActivationPanel(),
+                        ),
+                        const SliverToBoxAdapter(
+                          child: PxyTrafficRulesPanel(),
                         ),
                         // const Gap(100),
                         // PXY status and subscription info are shown in PxyActivationPanel.
