@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:hiddify/features/connection/model/connection_status.dart';
+import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -9,47 +11,100 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 class PxyConnectionModePanel extends ConsumerWidget {
   const PxyConnectionModePanel({super.key});
 
+  Future<void> _setWindowsProxy({required bool enabled, required int port}) async {
+    if (!Platform.isWindows) return;
+
+    const internetSettings = r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings';
+
+    if (enabled) {
+      await Process.run('reg', [
+        'add',
+        internetSettings,
+        '/v',
+        'ProxyEnable',
+        '/t',
+        'REG_DWORD',
+        '/d',
+        '1',
+        '/f',
+      ]);
+
+      await Process.run('reg', [
+        'add',
+        internetSettings,
+        '/v',
+        'ProxyServer',
+        '/t',
+        'REG_SZ',
+        '/d',
+        '127.0.0.1:$port',
+        '/f',
+      ]);
+
+      await Process.run('reg', [
+        'delete',
+        internetSettings,
+        '/v',
+        'AutoConfigURL',
+        '/f',
+      ]);
+
+      return;
+    }
+
+    await Process.run('reg', [
+      'add',
+      internetSettings,
+      '/v',
+      'ProxyEnable',
+      '/t',
+      'REG_DWORD',
+      '/d',
+      '0',
+      '/f',
+    ]);
+
+    await Process.run('reg', [
+      'delete',
+      internetSettings,
+      '/v',
+      'ProxyServer',
+      '/f',
+    ]);
+
+    await Process.run('reg', [
+      'delete',
+      internetSettings,
+      '/v',
+      'AutoConfigURL',
+      '/f',
+    ]);
+
+    await Process.run('netsh', ['winhttp', 'reset', 'proxy']);
+  }
+
   Future<void> _repairConnection(BuildContext context, WidgetRef ref) async {
     try {
-      await ref.read(ConfigOptions.serviceMode.notifier).update(ServiceMode.tun);
+      final mode = ref.read(ConfigOptions.serviceMode);
+      final mixedPort = ref.read(ConfigOptions.mixedPort);
+      final status = ref.read(connectionNotifierProvider).valueOrNull;
+      final isConnected = status is Connected;
 
-      if (Platform.isWindows) {
-        const internetSettings = r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings';
+      final shouldEnableWindowsProxy = mode == ServiceMode.systemProxy && isConnected;
 
-        await Process.run('reg', [
-          'add',
-          internetSettings,
-          '/v',
-          'ProxyEnable',
-          '/t',
-          'REG_DWORD',
-          '/d',
-          '0',
-          '/f',
-        ]);
-
-        await Process.run('reg', [
-          'delete',
-          internetSettings,
-          '/v',
-          'ProxyServer',
-          '/f',
-        ]);
-
-        await Process.run('reg', [
-          'delete',
-          internetSettings,
-          '/v',
-          'AutoConfigURL',
-          '/f',
-        ]);
-
-        await Process.run('netsh', ['winhttp', 'reset', 'proxy']);
-      }
+      await _setWindowsProxy(
+        enabled: shouldEnableWindowsProxy,
+        port: mixedPort,
+      );
 
       if (!context.mounted) return;
+
+      final message = shouldEnableWindowsProxy
+          ? 'Windows-прокси включён: 127.0.0.1:$mixedPort'
+          : 'Windows-прокси выключен.';
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Подключение исправлено. Режим переключён на TUN. Переподключите PXY.')),
+        SnackBar(content: Text(message)),
       );
     } catch (error) {
       if (!context.mounted) return;
@@ -128,7 +183,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
               ),
               const Gap(6),
               Text(
-                'Если после закрытия PXY в Windows остался включён системный прокси, нажмите эту кнопку.',
+                'Синхронизирует Windows-прокси с текущим режимом и состоянием подключения.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ],
