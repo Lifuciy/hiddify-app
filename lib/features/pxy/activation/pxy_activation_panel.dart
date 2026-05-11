@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -28,11 +29,14 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
   Map<String, dynamic>? _subscription;
   int? _refreshAfterSec;
   bool _forceRefreshCode = false;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadStoredSubscription();
+    _loadStoredSubscription().then((_) {
+      if (mounted) _refreshSubscription(silent: true);
+    });
   }
 
   Future<void> _loadStoredSubscription() async {
@@ -64,6 +68,7 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _codeController.dispose();
     super.dispose();
   }
@@ -177,6 +182,8 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
             ? 'PXY активирован. Профиль добавлен и выбран активным.'
             : 'Данные подписки обновлены.';
       });
+
+      _scheduleRefreshTimer(refreshAfterSec);
     } catch (error) {
       setState(() {
         _error = _formatError(error);
@@ -197,6 +204,127 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
       return error.message ?? error.toString();
     }
     return error.toString().replaceFirst('Exception: ', '');
+  }
+
+  String _refreshUrl() {
+    final activationUrl = _activationUrl.trim();
+    if (activationUrl.isEmpty) return '';
+
+    if (activationUrl.endsWith('/v1/activate')) {
+      return activationUrl.replaceFirst(RegExp(r'/v1/activate$'), '/v1/refresh');
+    }
+
+    if (activationUrl.endsWith('/activate')) {
+      return activationUrl.replaceFirst(RegExp(r'/activate$'), '/refresh');
+    }
+
+    return activationUrl.replaceFirst(RegExp(r'/?$'), '/v1/refresh');
+  }
+
+  void _scheduleRefreshTimer([int? seconds]) {
+    _refreshTimer?.cancel();
+
+    final refreshSeconds = seconds ?? _refreshAfterSec ?? 1800;
+    if (refreshSeconds <= 0) return;
+
+    _refreshTimer = Timer(Duration(seconds: refreshSeconds), () async {
+      if (!mounted) return;
+      await _refreshSubscription(silent: true);
+      if (mounted) _scheduleRefreshTimer();
+    });
+  }
+
+  Future<void> _refreshSubscription({bool silent = false}) async {
+    final refreshUrl = _refreshUrl();
+    if (refreshUrl.isEmpty) {
+      if (!silent && mounted) {
+        setState(() {
+          _error = 'API URL не задан в сборке.';
+        });
+      }
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final deviceId = prefs.getString('pxy_device_id');
+
+    if (deviceId == null || deviceId.isEmpty) {
+      if (!silent && mounted) {
+        setState(() {
+          _error = 'Устройство ещё не активировано. Введите код активации.';
+        });
+      }
+      return;
+    }
+
+    if (!silent && mounted) {
+      setState(() {
+        _loading = true;
+        _message = null;
+        _error = null;
+      });
+    }
+
+    try {
+      final dio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 12),
+          receiveTimeout: const Duration(seconds: 20),
+        ),
+      );
+
+      final response = await dio.post(
+        refreshUrl,
+        data: <String, dynamic>{
+          'device_id': deviceId,
+        },
+      );
+
+      final data = response.data;
+      if (data is! Map) {
+        throw Exception('Некорректный ответ API');
+      }
+
+      Map<String, dynamic>? subscription;
+      final subscriptionRaw = data['subscription'];
+      if (subscriptionRaw is Map) {
+        subscription = Map<String, dynamic>.from(subscriptionRaw);
+        await prefs.setString('pxy_subscription_json', jsonEncode(subscription));
+      }
+
+      final refreshRaw = data['refresh_after_sec'];
+      int? refreshAfterSec;
+      if (refreshRaw is int) {
+        refreshAfterSec = refreshRaw;
+        await prefs.setInt('pxy_refresh_after_sec', refreshAfterSec);
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _subscription = subscription ?? _subscription;
+        _refreshAfterSec = refreshAfterSec ?? _refreshAfterSec;
+        _forceRefreshCode = false;
+        if (!silent) {
+          _message = 'Данные подписки обновлены.';
+        }
+        _error = null;
+      });
+
+      _scheduleRefreshTimer(refreshAfterSec);
+    } catch (error) {
+      if (!silent && mounted) {
+        setState(() {
+          _error = _formatError(error);
+        });
+      }
+    } finally {
+      if (!silent && mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
   }
 
   String _subValue(String key) {
@@ -270,15 +398,7 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
     return Align(
       alignment: Alignment.centerLeft,
       child: OutlinedButton.icon(
-        onPressed: _loading
-            ? null
-            : () {
-                setState(() {
-                  _forceRefreshCode = true;
-                  _message = 'Введите новый код из Telegram-бота, чтобы обновить данные подписки.';
-                  _error = null;
-                });
-              },
+        onPressed: _loading ? null : () => _refreshSubscription(silent: false),
         icon: const Icon(Icons.refresh_rounded),
         label: const Text('Обновить данные подписки'),
       ),
@@ -316,7 +436,7 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
     final theme = Theme.of(context);
     final activeProfile = ref.watch(activeProfileProvider).valueOrNull;
     final isConfigured = _activationUrl.trim().isNotEmpty;
-    final needsActivationCode = activeProfile == null || _subscription == null || _forceRefreshCode;
+    final needsActivationCode = activeProfile == null || _forceRefreshCode;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -347,7 +467,7 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
                 activeProfile == null
                     ? 'Введите код активации, чтобы получить ваш VLESS+Reality профиль.'
                     : (_subscription == null
-                        ? 'Профиль уже активен, но данные подписки ещё не загружены. Введите новый код из Telegram-бота.'
+                        ? 'Профиль уже активен. Данные подписки обновятся автоматически или по кнопке ниже.'
                         : 'Активный профиль выбран. Можно подключаться.'),
                 style: theme.textTheme.bodyMedium,
               ),
@@ -361,6 +481,10 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
               if (activeProfile != null && _subscription != null) ...[
                 const Gap(12),
                 _subscriptionInfo(context),
+                const Gap(12),
+                _subscriptionActions(context),
+              ],
+              if (activeProfile != null && _subscription == null) ...[
                 const Gap(12),
                 _subscriptionActions(context),
               ],
