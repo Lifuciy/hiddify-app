@@ -42,7 +42,9 @@ class SingboxRule with _$SingboxRule {
     String? ip,
     String? port,
     String? protocol,
-    @Default(RuleNetwork.tcpAndUdp) RuleNetwork network,
+    @JsonKey(includeToJson: false, includeFromJson: false)
+    @Default(RuleNetwork.tcpAndUdp)
+    RuleNetwork network,
     @Default(RuleOutbound.proxy) RuleOutbound outbound,
   }) = _SingboxRule;
 
