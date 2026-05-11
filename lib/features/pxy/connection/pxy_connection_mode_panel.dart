@@ -91,9 +91,9 @@ class PxyConnectionModePanel extends ConsumerWidget {
       final isConnected = status is Connected;
 
       if (mode == ServiceMode.tun || mode == ServiceMode.tunService) {
-        if (Platform.isWindows && mode != ServiceMode.tunService) {
-          await ref.read(ConfigOptions.serviceMode.notifier).update(ServiceMode.tunService);
-          mode = ServiceMode.tunService;
+        if (mode != ServiceMode.tun) {
+          await ref.read(ConfigOptions.serviceMode.notifier).update(ServiceMode.tun);
+          mode = ServiceMode.tun;
         }
 
         await ref.read(ConfigOptions.mtu.notifier).update(1500);
@@ -105,7 +105,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('TUN исправлен: TUN Service, MTU 1500, strict route выключен. Переподключите PXY.'),
+            content: Text('TUN исправлен: режим TUN, MTU 1500, strict route выключен. Переподключите PXY от имени администратора.'),
           ),
         );
         return;
@@ -165,7 +165,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
               const Gap(8),
               Text(
                 selectedTun
-                    ? 'TUN-режим: перехватывает трафик всех приложений. На Windows используется TUN Service.'
+                    ? 'TUN-режим: перехватывает трафик всех приложений. На Windows запускайте PXY от имени администратора.'
                     : 'Системный прокси: запасной режим, если TUN не запускается или мешает сети.',
                 style: theme.textTheme.bodyMedium,
               ),
@@ -186,9 +186,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
                 selected: {selectedTun},
                 onSelectionChanged: (selected) async {
                   final useTun = selected.first;
-                  final nextMode = useTun
-                      ? (Platform.isWindows ? ServiceMode.tunService : ServiceMode.tun)
-                      : ServiceMode.systemProxy;
+                  final nextMode = useTun ? ServiceMode.tun : ServiceMode.systemProxy;
 
                   await ref.read(ConfigOptions.serviceMode.notifier).update(nextMode);
                 },
