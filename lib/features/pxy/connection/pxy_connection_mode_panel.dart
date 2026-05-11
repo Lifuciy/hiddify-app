@@ -85,10 +85,31 @@ class PxyConnectionModePanel extends ConsumerWidget {
 
   Future<void> _repairConnection(BuildContext context, WidgetRef ref) async {
     try {
-      final mode = ref.read(ConfigOptions.serviceMode);
+      var mode = ref.read(ConfigOptions.serviceMode);
       final mixedPort = ref.read(ConfigOptions.mixedPort);
       final status = ref.read(connectionNotifierProvider).valueOrNull;
       final isConnected = status is Connected;
+
+      if (mode == ServiceMode.tun || mode == ServiceMode.tunService) {
+        if (Platform.isWindows && mode != ServiceMode.tunService) {
+          await ref.read(ConfigOptions.serviceMode.notifier).update(ServiceMode.tunService);
+          mode = ServiceMode.tunService;
+        }
+
+        await ref.read(ConfigOptions.mtu.notifier).update(1500);
+        await ref.read(ConfigOptions.strictRoute.notifier).update(false);
+        await ref.read(ConfigOptions.tunImplementation.notifier).update(TunImplementation.system);
+
+        await _setWindowsProxy(enabled: false, port: mixedPort);
+
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('TUN исправлен: TUN Service, MTU 1500, strict route выключен. Переподключите PXY.'),
+          ),
+        );
+        return;
+      }
 
       final shouldEnableWindowsProxy = mode == ServiceMode.systemProxy && isConnected;
 
