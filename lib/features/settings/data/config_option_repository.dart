@@ -349,18 +349,6 @@ abstract class ConfigOptions {
   };
 
   static final singboxConfigOptions = Provider<SingboxConfigOption>((ref) {
-    final selectedRegion = ref.watch(region);
-    final rules = switch (selectedRegion) {
-      Region.ru => [
-          const SingboxRule(
-            domains: "domain:.ru,geosite:ru",
-            ip: "geoip:ru",
-            outbound: RuleOutbound.bypass,
-          ),
-        ],
-      _ => <SingboxRule>[],
-    };
-
     final mode = ref.watch(serviceMode);
     // final reg = ref.watch(Preferences.region.notifier).raw();
 
@@ -445,7 +433,6 @@ abstract class ConfigOptions {
       //       geoAssets.geosite.providerName,
       //       geoAssets.geosite.fileName,
       //     ),
-      rules: rules,
     );
   });
 }
