@@ -144,7 +144,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
               const Gap(8),
               Text(
                 selectedTun
-                    ? 'TUN-режим: рекомендуется для обычного использования. Перехватывает трафик всех приложений.'
+                    ? 'TUN-режим: перехватывает трафик всех приложений. На Windows используется TUN Service.'
                     : 'Системный прокси: запасной режим, если TUN не запускается или мешает сети.',
                 style: theme.textTheme.bodyMedium,
               ),
@@ -165,9 +165,11 @@ class PxyConnectionModePanel extends ConsumerWidget {
                 selected: {selectedTun},
                 onSelectionChanged: (selected) async {
                   final useTun = selected.first;
-                  await ref.read(ConfigOptions.serviceMode.notifier).update(
-                        useTun ? ServiceMode.tun : ServiceMode.systemProxy,
-                      );
+                  final nextMode = useTun
+                      ? (Platform.isWindows ? ServiceMode.tunService : ServiceMode.tun)
+                      : ServiceMode.systemProxy;
+
+                  await ref.read(ConfigOptions.serviceMode.notifier).update(nextMode);
                 },
               ),
               const Gap(8),
