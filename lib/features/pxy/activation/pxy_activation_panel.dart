@@ -145,7 +145,8 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
       }
 
       final activeProfile = ref.read(activeProfileProvider).valueOrNull;
-      final shouldImportProfile = activeProfile == null;
+      final changingSubscription = _forceRefreshCode;
+      final shouldImportProfile = activeProfile == null || changingSubscription;
 
       if (shouldImportProfile) {
         await ref.read(addProfileNotifierProvider.notifier).addClipboard(vless);
@@ -178,9 +179,11 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
         _subscription = subscription ?? _subscription;
         _refreshAfterSec = refreshAfterSec ?? _refreshAfterSec;
         _forceRefreshCode = false;
-        _message = shouldImportProfile
+        _message = activeProfile == null
             ? 'PXY активирован. Профиль добавлен и выбран активным.'
-            : 'Данные подписки обновлены.';
+            : (changingSubscription
+                ? 'Подписка изменена. Новый профиль добавлен и выбран активным.'
+                : 'Данные подписки обновлены.');
       });
 
       _scheduleRefreshTimer(refreshAfterSec);
@@ -395,13 +398,30 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
   }
 
   Widget _subscriptionActions(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: OutlinedButton.icon(
-        onPressed: _loading ? null : () => _refreshSubscription(silent: false),
-        icon: const Icon(Icons.refresh_rounded),
-        label: const Text('Обновить данные подписки'),
-      ),
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _loading ? null : () => _refreshSubscription(silent: false),
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Обновить данные подписки'),
+        ),
+        OutlinedButton.icon(
+          onPressed: _loading
+              ? null
+              : () {
+                  setState(() {
+                    _forceRefreshCode = true;
+                    _codeController.clear();
+                    _message = 'Введите новый код из Telegram-бота, чтобы сменить подписку.';
+                    _error = null;
+                  });
+                },
+          icon: const Icon(Icons.swap_horiz_rounded),
+          label: const Text('Сменить подписку'),
+        ),
+      ],
     );
   }
 
@@ -466,9 +486,11 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
               Text(
                 activeProfile == null
                     ? 'Введите код активации, чтобы получить ваш VLESS+Reality профиль.'
-                    : (_subscription == null
-                        ? 'Профиль уже активен. Данные подписки обновятся автоматически или по кнопке ниже.'
-                        : 'Активный профиль выбран. Можно подключаться.'),
+                    : (_forceRefreshCode
+                        ? 'Введите новый код из Telegram-бота, чтобы сменить подписку на этом устройстве.'
+                        : (_subscription == null
+                            ? 'Профиль уже активен. Данные подписки обновятся автоматически или по кнопке ниже.'
+                            : 'Активный профиль выбран. Можно подключаться.')),
                 style: theme.textTheme.bodyMedium,
               ),
               if (!isConfigured) ...[
@@ -512,7 +534,7 @@ class _PxyActivationPanelState extends ConsumerState<PxyActivationPanel> {
                   label: Text(
                     _loading
                         ? 'Активация...'
-                        : (activeProfile == null ? 'Активировать PXY' : 'Обновить данные подписки'),
+                        : (activeProfile == null ? 'Активировать PXY' : 'Сменить подписку'),
                   ),
                 ),
               ],
