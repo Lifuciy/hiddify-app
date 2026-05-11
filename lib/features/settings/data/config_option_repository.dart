@@ -349,11 +349,24 @@ abstract class ConfigOptions {
   };
 
   static final singboxConfigOptions = Provider<SingboxConfigOption>((ref) {
+    final selectedRegion = ref.watch(region);
+    final rules = switch (selectedRegion) {
+      Region.ru => [
+          const SingboxRule(
+            domains: "domain:.ru",
+            ip: "geoip:ru",
+            outbound: RuleOutbound.bypass,
+          ),
+        ],
+      _ => <SingboxRule>[],
+    };
+
     final mode = ref.watch(serviceMode);
     // final reg = ref.watch(Preferences.region.notifier).raw();
 
     return SingboxConfigOption(
       region: ref.watch(region).name,
+      rules: rules,
       blockAds: ref.watch(blockAds),
       useXrayCoreWhenPossible: ref.watch(useXrayCoreWhenPossible),
       executeConfigAsIs: false,
