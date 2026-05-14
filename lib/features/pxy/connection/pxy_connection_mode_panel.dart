@@ -98,6 +98,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
 
         await ref.read(ConfigOptions.mtu.notifier).update(1500);
         await ref.read(ConfigOptions.strictRoute.notifier).update(false);
+        await ref.read(ConfigOptions.ipv6Mode.notifier).update(IPv6Mode.disable);
         await ref.read(ConfigOptions.tunImplementation.notifier).update(TunImplementation.system);
 
         await _setWindowsProxy(enabled: false, port: mixedPort);
@@ -105,7 +106,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('TUN исправлен: режим TUN, MTU 1500, strict route выключен. Переподключите PXY от имени администратора.'),
+            content: Text('TUN исправлен: режим TUN, IPv4-only, MTU 1500, strict route выключен. Переподключите PXY от имени администратора.'),
           ),
         );
         return;
@@ -165,7 +166,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
               const Gap(8),
               Text(
                 selectedTun
-                    ? 'TUN-режим: перехватывает трафик всех приложений. На Windows требует запуск от имени администратора. Если не работает — используйте системный прокси.'
+                    ? 'TUN-режим: перехватывает трафик всех приложений. На Windows используется IPv4-only и требуется запуск от имени администратора.'
                     : 'Системный прокси: запасной режим, если TUN не запускается или мешает сети.',
                 style: theme.textTheme.bodyMedium,
               ),
@@ -190,6 +191,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
                     await ref.read(ConfigOptions.serviceMode.notifier).update(ServiceMode.tun);
                     await ref.read(ConfigOptions.mtu.notifier).update(1500);
                     await ref.read(ConfigOptions.strictRoute.notifier).update(false);
+                    await ref.read(ConfigOptions.ipv6Mode.notifier).update(IPv6Mode.disable);
                     await ref.read(ConfigOptions.tunImplementation.notifier).update(TunImplementation.system);
                     await _setWindowsProxy(
                       enabled: false,
