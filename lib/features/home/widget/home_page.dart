@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
+import 'package:hiddify/features/pxy/account/pxy_account_panel.dart';
 import 'package:hiddify/features/pxy/activation/pxy_activation_panel.dart';
 import 'package:hiddify/features/pxy/connection/pxy_connection_mode_panel.dart';
 import 'package:hiddify/features/pxy/traffic/pxy_traffic_rules_panel.dart';
@@ -76,6 +77,9 @@ class HomePage extends HookConsumerWidget {
                     // AsyncData(value: final profile?) =>
                     MultiSliver(
                       children: [
+                        const SliverToBoxAdapter(
+                          child: PxyAccountPanel(),
+                        ),
                         const SliverToBoxAdapter(
                           child: PxyActivationPanel(),
                         ),

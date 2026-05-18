@@ -1,0 +1,676 @@
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:gap/gap.dart';
+import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
+import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
+
+class PxyAccountPanel extends ConsumerStatefulWidget {
+  const PxyAccountPanel({super.key});
+
+  @override
+  ConsumerState<PxyAccountPanel> createState() => _PxyAccountPanelState();
+}
+
+class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
+  static const _accountApiUrl = String.fromEnvironment('PXY_ACCOUNT_API_URL', defaultValue: '');
+  static const _activationUrl = String.fromEnvironment('PXY_ACTIVATION_URL', defaultValue: '');
+
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _telegramCodeController = TextEditingController();
+
+  bool _loading = false;
+  String? _message;
+  String? _error;
+
+  String? _accessToken;
+  Map<String, dynamic>? _user;
+  Map<String, dynamic>? _subscription;
+  int? _vpnSessionId;
+  int? _profileVersion;
+  String? _shareLink;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStoredAccount();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _telegramCodeController.dispose();
+    super.dispose();
+  }
+
+  String _apiBaseUrl() {
+    final accountUrl = _accountApiUrl.trim();
+    if (accountUrl.isNotEmpty) {
+      return accountUrl.replaceFirst(RegExp(r'/$'), '');
+    }
+
+    final activationUrl = _activationUrl.trim();
+    if (activationUrl.endsWith('/v1/activate')) {
+      return activationUrl.replaceFirst(RegExp(r'/v1/activate$'), '');
+    }
+
+    if (activationUrl.endsWith('/activate')) {
+      return activationUrl.replaceFirst(RegExp(r'/activate$'), '');
+    }
+
+    return activationUrl.replaceFirst(RegExp(r'/$'), '');
+  }
+
+  Dio _dio() {
+    final baseUrl = _apiBaseUrl();
+    if (baseUrl.isEmpty) {
+      throw Exception(
+        'PXY API URL не задан. Собери приложение с --dart-define=PXY_ACCOUNT_API_URL=https://api.marakastaraka.ru',
+      );
+    }
+
+    return Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 15),
+      ),
+    );
+  }
+
+  Future<String> _deviceUuid() async {
+    final prefs = await SharedPreferences.getInstance();
+    var deviceId = prefs.getString('pxy_device_id');
+    if (deviceId == null || deviceId.isEmpty) {
+      deviceId = const Uuid().v4();
+      await prefs.setString('pxy_device_id', deviceId);
+    }
+    return deviceId;
+  }
+
+  Future<void> _loadStoredAccount() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final accessToken = prefs.getString('pxy_v2_access_token');
+    final userRaw = prefs.getString('pxy_v2_user_json');
+    final subscriptionRaw = prefs.getString('pxy_v2_subscription_json');
+    final vpnSessionId = prefs.getInt('pxy_v2_vpn_session_id');
+    final profileVersion = prefs.getInt('pxy_v2_profile_version');
+    final shareLink = prefs.getString('pxy_v2_share_link');
+
+    Map<String, dynamic>? user;
+    Map<String, dynamic>? subscription;
+
+    try {
+      if (userRaw != null && userRaw.isNotEmpty) {
+        final decoded = jsonDecode(userRaw);
+        if (decoded is Map) user = Map<String, dynamic>.from(decoded);
+      }
+
+      if (subscriptionRaw != null && subscriptionRaw.isNotEmpty) {
+        final decoded = jsonDecode(subscriptionRaw);
+        if (decoded is Map) subscription = Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {
+      await prefs.remove('pxy_v2_user_json');
+      await prefs.remove('pxy_v2_subscription_json');
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _accessToken = accessToken;
+      _user = user;
+      _subscription = subscription;
+      _vpnSessionId = vpnSessionId;
+      _profileVersion = profileVersion;
+      _shareLink = shareLink;
+    });
+
+    if (accessToken != null && accessToken.isNotEmpty) {
+      await _refreshAccount(silent: true);
+    }
+  }
+
+  Future<void> _saveAuth(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final user = data['user'];
+    if (user is Map) {
+      await prefs.setString('pxy_v2_user_json', jsonEncode(user));
+      _user = Map<String, dynamic>.from(user);
+    }
+
+    final subscription = data['subscription'];
+    if (subscription is Map) {
+      await prefs.setString('pxy_v2_subscription_json', jsonEncode(subscription));
+      _subscription = Map<String, dynamic>.from(subscription);
+    } else {
+      await prefs.remove('pxy_v2_subscription_json');
+      _subscription = null;
+    }
+
+    final tokens = data['tokens'];
+    if (tokens is Map && tokens['access_token'] is String) {
+      _accessToken = tokens['access_token'] as String;
+      await prefs.setString('pxy_v2_access_token', _accessToken!);
+    }
+  }
+
+  Future<void> _register() async {
+    await _auth(register: true);
+  }
+
+  Future<void> _login() async {
+    await _auth(register: false);
+  }
+
+  Future<void> _auth({required bool register}) async {
+    if (_loading) return;
+
+    setState(() {
+      _loading = true;
+      _message = null;
+      _error = null;
+    });
+
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text;
+
+      if (email.isEmpty) throw Exception('Введите email');
+      if (password.isEmpty) throw Exception('Введите пароль');
+
+      final deviceId = await _deviceUuid();
+
+      final response = await _dio().post(
+        register ? '/v1/auth/register' : '/v1/auth/login',
+        data: <String, dynamic>{
+          'email': email,
+          'password': password,
+          'display_name': email.split('@').first,
+          'device': <String, dynamic>{
+            'device_uuid': deviceId,
+            'device_name': 'PXY ${defaultTargetPlatform.name}',
+            'platform': defaultTargetPlatform.name,
+            'app_version': '0.0.1',
+            'os_version': defaultTargetPlatform.name,
+          },
+        },
+      );
+
+      final data = _asMap(response.data);
+      await _saveAuth(data);
+
+      if (!mounted) return;
+      setState(() {
+        _message = register ? 'Аккаунт создан.' : 'Вход выполнен.';
+        _error = null;
+      });
+
+      await _refreshAccount(silent: true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = _formatError(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshAccount({bool silent = false}) async {
+    final token = _accessToken;
+    if (token == null || token.isEmpty) return;
+
+    if (!silent && mounted) {
+      setState(() {
+        _loading = true;
+        _message = null;
+        _error = null;
+      });
+    }
+
+    try {
+      final deviceId = await _deviceUuid();
+
+      final response = await _dio().get(
+        '/v1/account/me',
+        options: Options(
+          headers: <String, dynamic>{
+            'Authorization': 'Bearer $token',
+            'X-Device-ID': deviceId,
+          },
+        ),
+      );
+
+      final data = _asMap(response.data);
+      final prefs = await SharedPreferences.getInstance();
+
+      final user = data['user'];
+      if (user is Map) {
+        _user = Map<String, dynamic>.from(user);
+        await prefs.setString('pxy_v2_user_json', jsonEncode(_user));
+      }
+
+      final subscription = data['subscription'];
+      if (subscription is Map) {
+        _subscription = Map<String, dynamic>.from(subscription);
+        await prefs.setString('pxy_v2_subscription_json', jsonEncode(_subscription));
+      } else {
+        _subscription = null;
+        await prefs.remove('pxy_v2_subscription_json');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        if (!silent) _message = 'Данные аккаунта обновлены.';
+        _error = null;
+      });
+    } catch (error) {
+      if (!silent && mounted) {
+        setState(() {
+          _error = _formatError(error);
+        });
+      }
+    } finally {
+      if (!silent && mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _linkTelegramCode() async {
+    final token = _accessToken;
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _error = 'Сначала войдите в аккаунт.';
+      });
+      return;
+    }
+
+    final code = _telegramCodeController.text.trim();
+    if (code.isEmpty) {
+      setState(() {
+        _error = 'Введите код привязки из Telegram.';
+      });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _message = null;
+      _error = null;
+    });
+
+    try {
+      final deviceId = await _deviceUuid();
+
+      final response = await _dio().post(
+        '/v1/account/link-telegram-code',
+        data: <String, dynamic>{
+          'link_code': code,
+        },
+        options: Options(
+          headers: <String, dynamic>{
+            'Authorization': 'Bearer $token',
+            'X-Device-ID': deviceId,
+          },
+        ),
+      );
+
+      final data = _asMap(response.data);
+      final subscription = data['subscription'];
+
+      if (subscription is Map) {
+        _subscription = Map<String, dynamic>.from(subscription);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('pxy_v2_subscription_json', jsonEncode(_subscription));
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _telegramCodeController.clear();
+        _message = 'Покупка из Telegram привязана к аккаунту.';
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = _formatError(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _startVpnSession() async {
+    final token = _accessToken;
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _error = 'Сначала войдите в аккаунт.';
+      });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _message = null;
+      _error = null;
+    });
+
+    try {
+      final deviceId = await _deviceUuid();
+
+      final response = await _dio().post(
+        '/v1/vpn/session/start',
+        data: <String, dynamic>{
+          'platform': defaultTargetPlatform.name,
+          'app_version': '0.0.1',
+          'connection_mode': 'system_proxy',
+        },
+        options: Options(
+          headers: <String, dynamic>{
+            'Authorization': 'Bearer $token',
+            'X-Device-ID': deviceId,
+          },
+        ),
+      );
+
+      final data = _asMap(response.data);
+      final profile = data['profile'];
+      if (profile is! Map) throw Exception('В ответе API нет VPN-профиля');
+
+      final shareLink = profile['share_link'];
+      if (shareLink is! String || !shareLink.startsWith('vless://')) {
+        throw Exception('В ответе API не найден vless:// профиль');
+      }
+
+      final profileVersionRaw = profile['profile_version'];
+      final profileVersion = profileVersionRaw is int ? profileVersionRaw : int.tryParse('$profileVersionRaw');
+
+      final activeProfile = ref.read(activeProfileProvider).valueOrNull;
+      final shouldImportProfile = activeProfile == null || _shareLink != shareLink;
+
+      if (shouldImportProfile) {
+        await ref.read(addProfileNotifierProvider.notifier).addClipboard(shareLink);
+
+        final importState = ref.read(addProfileNotifierProvider);
+        if (importState.hasError) {
+          throw importState.error ?? Exception('Не удалось импортировать профиль');
+        }
+
+        ref.invalidate(activeProfileProvider);
+      }
+
+      final vpnSession = data['vpn_session'];
+      final subscription = data['subscription'];
+
+      final prefs = await SharedPreferences.getInstance();
+
+      if (vpnSession is Map && vpnSession['id'] is int) {
+        _vpnSessionId = vpnSession['id'] as int;
+        await prefs.setInt('pxy_v2_vpn_session_id', _vpnSessionId!);
+      }
+
+      if (profileVersion != null) {
+        _profileVersion = profileVersion;
+        await prefs.setInt('pxy_v2_profile_version', profileVersion);
+      }
+
+      _shareLink = shareLink;
+      await prefs.setString('pxy_v2_share_link', shareLink);
+
+      if (subscription is Map) {
+        _subscription = Map<String, dynamic>.from(subscription);
+        await prefs.setString('pxy_v2_subscription_json', jsonEncode(_subscription));
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _message = shouldImportProfile
+            ? 'VPN-профиль получен и добавлен. Можно подключаться.'
+            : 'VPN-сессия активирована. Можно подключаться.';
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = _formatError(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.remove('pxy_v2_access_token');
+    await prefs.remove('pxy_v2_user_json');
+    await prefs.remove('pxy_v2_subscription_json');
+    await prefs.remove('pxy_v2_vpn_session_id');
+    await prefs.remove('pxy_v2_profile_version');
+    await prefs.remove('pxy_v2_share_link');
+
+    if (!mounted) return;
+    setState(() {
+      _accessToken = null;
+      _user = null;
+      _subscription = null;
+      _vpnSessionId = null;
+      _profileVersion = null;
+      _shareLink = null;
+      _message = 'Вы вышли из аккаунта.';
+      _error = null;
+    });
+  }
+
+  Map<String, dynamic> _asMap(dynamic data) {
+    if (data is String) {
+      final decoded = jsonDecode(data);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    }
+
+    if (data is Map) return Map<String, dynamic>.from(data);
+
+    throw Exception('Некорректный ответ API');
+  }
+
+  String _formatError(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final detail = data['detail'];
+        if (detail is Map && detail['message'] != null) {
+          return detail['message'].toString();
+        }
+        if (data['message'] != null) return data['message'].toString();
+      }
+      return error.message ?? error.toString();
+    }
+
+    return error.toString().replaceFirst('Exception: ', '');
+  }
+
+  String _subscriptionText() {
+    final sub = _subscription;
+    if (sub == null) return 'Подписка не найдена';
+
+    final status = sub['status']?.toString() ?? '—';
+    final plan = sub['plan_code']?.toString() ?? '—';
+    final daysLeft = sub['days_left']?.toString() ?? '—';
+    final expiresAt = sub['expires_at']?.toString() ?? '—';
+
+    return 'Подписка: $status\nТариф: $plan\nОсталось дней: $daysLeft\nДействует до: $expiresAt';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final loggedIn = _accessToken != null && _accessToken!.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Card(
+        color: theme.colorScheme.surfaceContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.account_circle_rounded, color: theme.colorScheme.primary),
+                  const Gap(8),
+                  Text(
+                    loggedIn ? 'Аккаунт PXY' : 'Вход в PXY',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const Gap(8),
+              Text(
+                loggedIn
+                    ? 'Аккаунт нужен для подписки, одного активного устройства и автоматического обновления VPN-профиля.'
+                    : 'Войдите или создайте аккаунт. Если покупали в Telegram — после входа введите код привязки.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const Gap(12),
+              if (!loggedIn) ...[
+                TextField(
+                  controller: _emailController,
+                  enabled: !_loading,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const Gap(8),
+                TextField(
+                  controller: _passwordController,
+                  enabled: !_loading,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Пароль',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const Gap(12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _loading ? null : _login,
+                      icon: const Icon(Icons.login_rounded),
+                      label: const Text('Войти'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _loading ? null : _register,
+                      icon: const Icon(Icons.person_add_alt_1_rounded),
+                      label: const Text('Создать аккаунт'),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                Text(
+                  _user?['email']?.toString() ?? 'Аккаунт активен',
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const Gap(8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Text(_subscriptionText()),
+                ),
+                const Gap(12),
+                TextField(
+                  controller: _telegramCodeController,
+                  enabled: !_loading,
+                  decoration: const InputDecoration(
+                    labelText: 'Код из Telegram',
+                    hintText: 'Например: ABCD-1234',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const Gap(12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _loading ? null : _startVpnSession,
+                      icon: const Icon(Icons.vpn_key_rounded),
+                      label: const Text('Активировать это устройство'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _loading ? null : _linkTelegramCode,
+                      icon: const Icon(Icons.link_rounded),
+                      label: const Text('Привязать Telegram-покупку'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _loading ? null : () => _refreshAccount(silent: false),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Обновить аккаунт'),
+                    ),
+                    TextButton.icon(
+                      onPressed: _loading ? null : _logout,
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Выйти'),
+                    ),
+                  ],
+                ),
+              ],
+              if (_loading) ...[
+                const Gap(12),
+                const LinearProgressIndicator(),
+              ],
+              if (_message != null) ...[
+                const Gap(12),
+                Text(
+                  _message!,
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary),
+                ),
+              ],
+              if (_error != null) ...[
+                const Gap(12),
+                Text(
+                  _error!,
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
