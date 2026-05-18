@@ -74,7 +74,7 @@ jobs:
       - name: Build Windows (release)
         shell: pwsh
         run: |
-          flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath build_windows.log
+          flutter build windows --dart-define=PXY_ACCOUNT_API_URL=https://api.marakastaraka.ru --dart-define=PXY_ACTIVATION_URL=https://api.marakastaraka.ru/v1/activate --release --verbose 2>&1 | Tee-Object -FilePath build_windows.log
 
       - name: Create start scripts (white screen workaround)
         shell: pwsh
