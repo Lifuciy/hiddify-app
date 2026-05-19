@@ -272,7 +272,9 @@ android-apk-release:
 	  --skip-clean \
 	  --build-target=$(TARGET) \
 	  --build-target-platform=android-arm,android-arm64,android-x64 \
-	  --build-dart-define=sentry_dsn=$(SENTRY_DSN)
+	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) \
+	  --build-dart-define=PXY_ACCOUNT_API_URL=https://api.marakastaraka.ru \
+	  --build-dart-define=PXY_ACTIVATION_URL=https://api.marakastaraka.ru/v1/activate
 	ls -R build/app/outputs
 
 android-aab-release:
@@ -282,7 +284,9 @@ android-aab-release:
 	  --skip-clean \
 	  --build-target=$(TARGET) \
 	  --build-dart-define=sentry_dsn=$(SENTRY_DSN) \
-	  --build-dart-define=release=google-play
+	  --build-dart-define=release=google-play \
+	  --build-dart-define=PXY_ACCOUNT_API_URL=https://api.marakastaraka.ru \
+	  --build-dart-define=PXY_ACTIVATION_URL=https://api.marakastaraka.ru/v1/activate
 
 windows-release: windows-zip-release windows-exe-release windows-msix-release
 
