@@ -98,10 +98,15 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     return deviceId;
   }
 
+  bool get _isSubscriptionActive {
+    final status = _subscription?['status']?.toString().toLowerCase();
+    return status == 'active' || status == 'trial';
+  }
+
   bool get _isAccountReadyForVpn {
     return _accessToken != null &&
         _accessToken!.isNotEmpty &&
-        _subscription != null &&
+        _isSubscriptionActive &&
         _shareLink != null &&
         _shareLink!.isNotEmpty;
   }
@@ -296,6 +301,10 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
         _error = null;
       });
       _syncReadyGate();
+
+      if (_isSubscriptionActive && !_isAccountReadyForVpn) {
+        await _startVpnSession();
+      }
     } catch (error) {
       if (!silent && mounted) {
         setState(() {
@@ -366,6 +375,10 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
         _error = null;
       });
       _syncReadyGate();
+
+      if (_isSubscriptionActive && !_isAccountReadyForVpn) {
+        await _startVpnSession();
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -572,13 +585,13 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
                 ],
               ),
               const Gap(8),
-              Text(
-                loggedIn
-                    ? 'Аккаунт нужен для подписки, одного активного устройства и автоматического обновления VPN-профиля.'
-                    : 'Войдите или создайте аккаунт. Если покупали в Telegram — после входа введите код привязки.',
-                style: theme.textTheme.bodyMedium,
-              ),
-              const Gap(12),
+              if (!loggedIn) ...[
+                Text(
+                  'Войдите или создайте аккаунт. Если покупали в Telegram — после входа введите код привязки.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const Gap(12),
+              ],
               if (!loggedIn) ...[
                 TextField(
                   controller: _emailController,
@@ -629,30 +642,32 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
                     border: Border.all(color: theme.colorScheme.outlineVariant),
                   ),
                   padding: const EdgeInsets.all(12),
-                  child: Text(_subscriptionText()),
-                ),
-                const Gap(12),
-                TextField(
-                  controller: _telegramCodeController,
-                  enabled: !_loading,
-                  decoration: const InputDecoration(
-                    labelText: 'Код из Telegram',
-                    hintText: 'Например: ABCD-1234',
-                    border: OutlineInputBorder(),
+                  child: Text(
+                    _subscriptionText(),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: _isSubscriptionActive ? theme.colorScheme.primary : theme.colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-                const Gap(12),
+                if (!_isSubscriptionActive) ...[
+                  const Gap(12),
+                  TextField(
+                    controller: _telegramCodeController,
+                    enabled: !_loading,
+                    decoration: const InputDecoration(
+                      labelText: 'Код из Telegram',
+                      hintText: 'Например: ABCD-1234',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const Gap(12),
+                ],
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    if (_subscription != null)
-                      FilledButton.icon(
-                        onPressed: _loading ? null : _startVpnSession,
-                        icon: const Icon(Icons.vpn_key_rounded),
-                        label: const Text('Активировать это устройство'),
-                      ),
-                    if (_subscription == null)
+                    if (!_isSubscriptionActive)
                       OutlinedButton.icon(
                         onPressed: _loading ? null : _linkTelegramCode,
                         icon: const Icon(Icons.link_rounded),
@@ -661,7 +676,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
                     OutlinedButton.icon(
                       onPressed: _loading ? null : () => _refreshAccount(silent: false),
                       icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Обновить аккаунт'),
+                      label: const Text('Обновить'),
                     ),
                     TextButton.icon(
                       onPressed: _loading ? null : _logout,

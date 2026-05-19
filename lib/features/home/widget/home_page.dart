@@ -5,7 +5,6 @@ import 'package:hiddify/core/app_info/app_info_provider.dart';
 import 'package:hiddify/core/localization/translations.dart';
 import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/pxy/account/pxy_account_panel.dart';
-import 'package:hiddify/features/pxy/activation/pxy_activation_panel.dart';
 import 'package:hiddify/features/pxy/connection/pxy_connection_mode_panel.dart';
 import 'package:hiddify/features/pxy/traffic/pxy_traffic_rules_panel.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
@@ -78,39 +77,29 @@ class HomePage extends HookConsumerWidget {
                     // AsyncData(value: final profile?) =>
                     MultiSliver(
                       children: [
+                        if (pxyAccountReady)
+                          const SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ConnectionButton(),
+                                  Gap(8),
+                                  ActiveProxyDelayIndicator(),
+                                  Gap(8),
+                                  ActiveProxyFooter(),
+                                ],
+                              ),
+                            ),
+                          ),
                         const SliverToBoxAdapter(
                           child: PxyAccountPanel(),
                         ),
-                        if (pxyAccountReady) ...[
-                          const SliverToBoxAdapter(
-                            child: PxyActivationPanel(),
-                          ),
-                          const SliverToBoxAdapter(
-                            child: PxyConnectionModePanel(),
-                          ),
-                          const SliverToBoxAdapter(
-                            child: PxyTrafficRulesPanel(),
-                          ),
-                        ],
-                        // const Gap(100),
-                        // PXY status and subscription info are shown in PxyActivationPanel.
                         if (pxyAccountReady)
-                          const SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [ConnectionButton(), ActiveProxyDelayIndicator()],
-                                ),
-                              ),
-                              ActiveProxyFooter(),
-                            ],
+                          const SliverToBoxAdapter(
+                            child: PxyAdvancedSettingsPanel(),
                           ),
-                        ),
                       ],
                     ),
                     // AsyncData() => switch (hasAnyProfile) {
@@ -130,6 +119,36 @@ class HomePage extends HookConsumerWidget {
     );
   }
 }
+
+
+class PxyAdvancedSettingsPanel extends StatelessWidget {
+  const PxyAdvancedSettingsPanel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Card(
+        color: theme.colorScheme.surfaceContainer,
+        child: ExpansionTile(
+          leading: Icon(Icons.tune_rounded, color: theme.colorScheme.primary),
+          title: Text(
+            'Расширенные настройки',
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          children: const [
+            PxyConnectionModePanel(),
+            PxyTrafficRulesPanel(),
+            Gap(8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class AppVersionLabel extends HookConsumerWidget {
   const AppVersionLabel({super.key});
