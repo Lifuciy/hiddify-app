@@ -19,6 +19,7 @@ class HomePage extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final pxyAccountReady = ref.watch(pxyAccountReadyProvider);
     final theme = Theme.of(context);
     final t = ref.watch(translationsProvider).requireValue;
     // final hasAnyProfile = ref.watch(hasAnyProfileProvider);
@@ -80,18 +81,21 @@ class HomePage extends HookConsumerWidget {
                         const SliverToBoxAdapter(
                           child: PxyAccountPanel(),
                         ),
-                        const SliverToBoxAdapter(
-                          child: PxyActivationPanel(),
-                        ),
-                        const SliverToBoxAdapter(
-                          child: PxyConnectionModePanel(),
-                        ),
-                        const SliverToBoxAdapter(
-                          child: PxyTrafficRulesPanel(),
-                        ),
+                        if (pxyAccountReady) ...[
+                          const SliverToBoxAdapter(
+                            child: PxyActivationPanel(),
+                          ),
+                          const SliverToBoxAdapter(
+                            child: PxyConnectionModePanel(),
+                          ),
+                          const SliverToBoxAdapter(
+                            child: PxyTrafficRulesPanel(),
+                          ),
+                        ],
                         // const Gap(100),
                         // PXY status and subscription info are shown in PxyActivationPanel.
-                        const SliverFillRemaining(
+                        if (pxyAccountReady)
+                          const SliverFillRemaining(
                           hasScrollBody: false,
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,

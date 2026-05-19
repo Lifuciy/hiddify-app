@@ -10,6 +10,8 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+final pxyAccountReadyProvider = StateProvider<bool>((ref) => false);
+
 class PxyAccountPanel extends ConsumerStatefulWidget {
   const PxyAccountPanel({super.key});
 
@@ -96,6 +98,19 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     return deviceId;
   }
 
+  bool get _isAccountReadyForVpn {
+    return _accessToken != null &&
+        _accessToken!.isNotEmpty &&
+        _subscription != null &&
+        _shareLink != null &&
+        _shareLink!.isNotEmpty;
+  }
+
+  void _syncReadyGate() {
+    if (!mounted) return;
+    ref.read(pxyAccountReadyProvider.notifier).state = _isAccountReadyForVpn;
+  }
+
   Future<void> _loadStoredAccount() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -134,6 +149,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
       _profileVersion = profileVersion;
       _shareLink = shareLink;
     });
+    _syncReadyGate();
 
     if (accessToken != null && accessToken.isNotEmpty) {
       await _refreshAccount(silent: true);
@@ -279,6 +295,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
         if (!silent) _message = 'Данные аккаунта обновлены.';
         _error = null;
       });
+      _syncReadyGate();
     } catch (error) {
       if (!silent && mounted) {
         setState(() {
@@ -348,6 +365,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
         _message = 'Покупка из Telegram привязана к аккаунту.';
         _error = null;
       });
+      _syncReadyGate();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -451,6 +469,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
             : 'VPN-сессия активирована. Можно подключаться.';
         _error = null;
       });
+      _syncReadyGate();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -486,6 +505,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
       _message = 'Вы вышли из аккаунта.';
       _error = null;
     });
+    _syncReadyGate();
   }
 
   Map<String, dynamic> _asMap(dynamic data) {
@@ -626,16 +646,18 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    FilledButton.icon(
-                      onPressed: _loading ? null : _startVpnSession,
-                      icon: const Icon(Icons.vpn_key_rounded),
-                      label: const Text('Активировать это устройство'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _loading ? null : _linkTelegramCode,
-                      icon: const Icon(Icons.link_rounded),
-                      label: const Text('Привязать Telegram-покупку'),
-                    ),
+                    if (_subscription != null)
+                      FilledButton.icon(
+                        onPressed: _loading ? null : _startVpnSession,
+                        icon: const Icon(Icons.vpn_key_rounded),
+                        label: const Text('Активировать это устройство'),
+                      ),
+                    if (_subscription == null)
+                      OutlinedButton.icon(
+                        onPressed: _loading ? null : _linkTelegramCode,
+                        icon: const Icon(Icons.link_rounded),
+                        label: const Text('Привязать Telegram-покупку'),
+                      ),
                     OutlinedButton.icon(
                       onPressed: _loading ? null : () => _refreshAccount(silent: false),
                       icon: const Icon(Icons.refresh_rounded),
