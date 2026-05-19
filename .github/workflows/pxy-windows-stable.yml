@@ -36,6 +36,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.41.9'
           cache: false
 
       - name: Flutter doctor
@@ -109,10 +110,11 @@ jobs:
           $ErrorActionPreference = "Continue"
           "BUILD_REACHED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           $defineArgs = @()
+$defineArgs += "--dart-define=PXY_ACCOUNT_API_URL=https://api.marakastaraka.ru"
           if ("${{ inputs.pxy_activation_url }}" -ne "") {
             $defineArgs += "--dart-define=PXY_ACTIVATION_URL=${{ inputs.pxy_activation_url }}"
           }
-          flutter build windows --dart-define=PXY_ACCOUNT_API_URL=https://api.marakastaraka.ru --dart-define=PXY_ACTIVATION_URL=https://api.marakastaraka.ru/v1/activate --release @defineArgs 2>&1 | Tee-Object -FilePath build_windows.log
+          flutter build windows --release @defineArgs 2>&1 | Tee-Object -FilePath build_windows.log
           if ($LASTEXITCODE -ne 0) {
             "BUILD_FAILED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           } else {
