@@ -1,12 +1,23 @@
 name: PXY Windows (Stable)
 
 "on":
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/pxy-windows-stable.yml"
+      - "lib/**"
+      - "windows/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "ci/windows/**"
+
   workflow_dispatch:
     inputs:
       pxy_activation_url:
         description: "PXY activation API URL"
         required: false
-        default: ""
+        default: "https://api.marakastaraka.ru/v1/activate"
 
 jobs:
   build:
