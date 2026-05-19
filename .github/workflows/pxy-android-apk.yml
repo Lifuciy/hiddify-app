@@ -1,12 +1,25 @@
 name: PXY Android APK
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/pxy-android-apk.yml"
+      - "android/**"
+      - "lib/**"
+      - "assets/**"
+      - "hiddify-core/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "Makefile"
+
   workflow_dispatch:
     inputs:
       ref:
         description: "Git ref to build (branch/tag/sha)"
         required: true
-        default: "pxy/activation-only"
+        default: "main"
 
 jobs:
   build-apk:
@@ -78,6 +91,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.41.9'
           cache: true
 
       - name: Pub get
