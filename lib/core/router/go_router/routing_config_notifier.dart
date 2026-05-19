@@ -63,7 +63,8 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
     if (isMobileBreakpoint == null) return loadingConfig;
     return RoutingConfig(
       redirect: (context, state) {
-        final introCompleted = ref.read(Preferences.introCompleted);
+        // PXY: skip original Hiddify intro/onboarding.
+        final introCompleted = true;
         final isIntro = state.matchedLocation == '/intro';
         // fix path-parameters for deep link
         String? url;
@@ -76,8 +77,9 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
           url = state.uri.queryParameters['url'];
         }
 
-        // PXY: skip original Hiddify intro/onboarding.
-        // First launch must go directly to the PXY account screen.
+        if (!introCompleted) {
+          return url != null ? '/intro?url=$url' : '/intro';
+        } else if (isIntro) {
           if (url != null)
             WidgetsBinding.instance.addPostFrameCallback(
               (_) => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(url: url),
