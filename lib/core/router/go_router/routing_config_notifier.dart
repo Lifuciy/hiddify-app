@@ -76,9 +76,8 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
           url = state.uri.queryParameters['url'];
         }
 
-        if (!introCompleted) {
-          return url != null ? '/intro?url=$url' : '/intro';
-        } else if (isIntro) {
+        // PXY: skip original Hiddify intro/onboarding.
+        // First launch must go directly to the PXY account screen.
           if (url != null)
             WidgetsBinding.instance.addPostFrameCallback(
               (_) => ref.read(bottomSheetsNotifierProvider.notifier).showAddProfile(url: url),
