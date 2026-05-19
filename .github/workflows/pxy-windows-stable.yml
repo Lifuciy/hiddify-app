@@ -121,7 +121,7 @@ jobs:
           $ErrorActionPreference = "Continue"
           "BUILD_REACHED=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           $defineArgs = @()
-$defineArgs += "--dart-define=PXY_ACCOUNT_API_URL=https://api.marakastaraka.ru"
+          $defineArgs += "--dart-define=PXY_ACCOUNT_API_URL=https://api.marakastaraka.ru"
           if ("${{ inputs.pxy_activation_url }}" -ne "") {
             $defineArgs += "--dart-define=PXY_ACTIVATION_URL=${{ inputs.pxy_activation_url }}"
           }
