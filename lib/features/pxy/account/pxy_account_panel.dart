@@ -767,6 +767,50 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     }
   }
 
+  Future<void> _repairVpnProfile() async {
+    if (_accessToken == null || _accessToken!.isEmpty) {
+      setState(() {
+        _error = 'Сначала войдите в аккаунт.';
+        _message = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _message = null;
+      _error = null;
+    });
+
+    try {
+      await _refreshAccount(silent: true);
+
+      if (_shareLink != null && _shareLink!.isNotEmpty) {
+        await _ensureLocalVpnProfile(silent: false);
+      } else if (_isSubscriptionActive) {
+        await _startVpnSession();
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _message = 'Профиль PXY восстановлен. Можно подключаться.';
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Не удалось восстановить профиль: ${_formatError(e)}';
+        _message = null;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _logout() async {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
@@ -1007,6 +1051,12 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
                       icon: const Icon(Icons.refresh_rounded),
                       label: const Text('Обновить'),
                     ),
+                    if (_isSubscriptionActive)
+                      OutlinedButton.icon(
+                        onPressed: _loading ? null : _repairVpnProfile,
+                        icon: const Icon(Icons.build_circle_rounded),
+                        label: const Text('Восстановить профиль'),
+                      ),
                     OutlinedButton.icon(
                       onPressed: _loading ? null : _openSupport,
                       icon: const Icon(Icons.support_agent_rounded),
