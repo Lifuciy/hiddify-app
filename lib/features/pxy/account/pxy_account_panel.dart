@@ -348,6 +348,86 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     }
   }
 
+  Future<Response<dynamic>> _authorizedGet(String path) async {
+    if (_accessTokenNeedsRefresh()) {
+      await _refreshAccessToken(silent: true);
+    }
+
+    var token = _accessToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('Требуется вход в аккаунт.');
+    }
+
+    try {
+      return await Dio(BaseOptions(baseUrl: _accountApiUrl)).get<dynamic>(
+        path,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'X-Device-ID': _deviceId,
+          },
+        ),
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 && await _refreshAccessToken(silent: true)) {
+        token = _accessToken;
+        if (token != null && token.isNotEmpty) {
+          return await Dio(BaseOptions(baseUrl: _accountApiUrl)).get<dynamic>(
+            path,
+            options: Options(
+              headers: {
+                'Authorization': 'Bearer $token',
+                'X-Device-ID': _deviceId,
+              },
+            ),
+          );
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<Response<dynamic>> _authorizedPost(String path, Map<String, dynamic> data) async {
+    if (_accessTokenNeedsRefresh()) {
+      await _refreshAccessToken(silent: true);
+    }
+
+    var token = _accessToken;
+    if (token == null || token.isEmpty) {
+      throw Exception('Требуется вход в аккаунт.');
+    }
+
+    try {
+      return await Dio(BaseOptions(baseUrl: _accountApiUrl)).post<dynamic>(
+        path,
+        data: data,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $token',
+            'X-Device-ID': _deviceId,
+          },
+        ),
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 && await _refreshAccessToken(silent: true)) {
+        token = _accessToken;
+        if (token != null && token.isNotEmpty) {
+          return await Dio(BaseOptions(baseUrl: _accountApiUrl)).post<dynamic>(
+            path,
+            data: data,
+            options: Options(
+              headers: {
+                'Authorization': 'Bearer $token',
+                'X-Device-ID': _deviceId,
+              },
+            ),
+          );
+        }
+      }
+      rethrow;
+    }
+  }
+
   Future<void> _refreshAccount({bool silent = false}) async {
     if (_accessTokenNeedsRefresh()) {
       await _refreshAccessToken(silent: true);
