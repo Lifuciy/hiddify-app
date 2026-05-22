@@ -358,13 +358,15 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
       throw Exception('Требуется вход в аккаунт.');
     }
 
+    final deviceId = await _deviceUuid();
+
     try {
       return await Dio(BaseOptions(baseUrl: _accountApiUrl)).get<dynamic>(
         path,
         options: Options(
           headers: {
             'Authorization': 'Bearer $token',
-            'X-Device-ID': _deviceId,
+            'X-Device-ID': deviceId,
           },
         ),
       );
@@ -377,7 +379,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
             options: Options(
               headers: {
                 'Authorization': 'Bearer $token',
-                'X-Device-ID': _deviceId,
+                'X-Device-ID': deviceId,
               },
             ),
           );
@@ -397,6 +399,8 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
       throw Exception('Требуется вход в аккаунт.');
     }
 
+    final deviceId = await _deviceUuid();
+
     try {
       return await Dio(BaseOptions(baseUrl: _accountApiUrl)).post<dynamic>(
         path,
@@ -404,7 +408,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
         options: Options(
           headers: {
             'Authorization': 'Bearer $token',
-            'X-Device-ID': _deviceId,
+            'X-Device-ID': deviceId,
           },
         ),
       );
@@ -418,7 +422,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
             options: Options(
               headers: {
                 'Authorization': 'Bearer $token',
-                'X-Device-ID': _deviceId,
+                'X-Device-ID': deviceId,
               },
             ),
           );
@@ -445,17 +449,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     }
 
     try {
-      final deviceId = await _deviceUuid();
-
-      final response = await _dio().get(
-        '/v1/account/me',
-        options: Options(
-          headers: <String, dynamic>{
-            'Authorization': 'Bearer $token',
-            'X-Device-ID': deviceId,
-          },
-        ),
-      );
+      final response = await _authorizedGet('/v1/account/me');
 
       final data = _asMap(response.data);
       final prefs = await SharedPreferences.getInstance();
@@ -528,19 +522,11 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     });
 
     try {
-      final deviceId = await _deviceUuid();
-
-      final response = await _dio().post(
+      final response = await _authorizedPost(
         '/v1/account/link-telegram-code',
-        data: <String, dynamic>{
+        <String, dynamic>{
           'link_code': code,
         },
-        options: Options(
-          headers: <String, dynamic>{
-            'Authorization': 'Bearer $token',
-            'X-Device-ID': deviceId,
-          },
-        ),
       );
 
       final data = _asMap(response.data);
@@ -608,21 +594,13 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     });
 
     try {
-      final deviceId = await _deviceUuid();
-
-      final response = await _dio().post(
+      final response = await _authorizedPost(
         '/v1/vpn/session/start',
-        data: <String, dynamic>{
+        <String, dynamic>{
           'platform': defaultTargetPlatform.name,
           'app_version': '0.0.1',
           'connection_mode': 'system_proxy',
         },
-        options: Options(
-          headers: <String, dynamic>{
-            'Authorization': 'Bearer $token',
-            'X-Device-ID': deviceId,
-          },
-        ),
       );
 
       final data = _asMap(response.data);
