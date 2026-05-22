@@ -113,6 +113,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     return _accessToken != null &&
         _accessToken!.isNotEmpty &&
         _isSubscriptionActive &&
+        _vpnSessionId != null &&
         _shareLink != null &&
         _shareLink!.isNotEmpty;
   }
@@ -797,10 +798,14 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     try {
       await _refreshAccount(silent: true);
 
-      if (_shareLink != null && _shareLink!.isNotEmpty) {
-        await _ensureLocalVpnProfile(silent: false);
-      } else if (_isSubscriptionActive) {
+      if (!_isSubscriptionActive) {
+        throw Exception('Подписка не активна.');
+      }
+
+      if (_vpnSessionId == null || _shareLink == null || _shareLink!.isEmpty) {
         await _startVpnSession();
+      } else {
+        await _ensureLocalVpnProfile(silent: false);
       }
 
       if (!mounted) return;
