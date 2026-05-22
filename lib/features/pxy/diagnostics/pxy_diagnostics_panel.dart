@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
+import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -82,6 +83,19 @@ class _PxyDiagnosticsPanelState extends ConsumerState<PxyDiagnosticsPanel> {
       ),
     );
 
+    final connectionStatus = ref.read(connectionNotifierProvider).valueOrNull;
+    final isConnected = connectionStatus?.isConnected ?? false;
+
+    rows.add(
+      _PxyDiagRow(
+        title: 'Состояние VPN',
+        ok: isConnected,
+        details: isConnected
+            ? 'PXY подключён'
+            : 'PXY сейчас не подключён. Нажмите кнопку подключения и повторите проверку.',
+      ),
+    );
+
     try {
       final ipResponse = await Dio().get<String>(
         'https://api.ipify.org',
@@ -125,8 +139,8 @@ class _PxyDiagnosticsPanelState extends ConsumerState<PxyDiagnosticsPanel> {
       _loading = false;
       _rows = rows;
       _message = hasError
-          ? 'Обнаружена проблема. Скопируйте отчёт и отправьте его в поддержку.'
-          : 'Проверка прошла успешно. Основные компоненты PXY работают.';
+          ? 'Обнаружена проблема. Если PXY не подключён — подключитесь и повторите проверку. Если ошибка осталась, отправьте отчёт в поддержку.'
+          : 'Проверка прошла успешно. PXY подключён, профиль выбран, сервер отвечает.';
     });
   }
 
