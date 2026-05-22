@@ -119,10 +119,6 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
   }
 
   bool _accessTokenNeedsRefresh() {
-    if (_accessTokenNeedsRefresh()) {
-      await _refreshAccessToken(silent: true);
-    }
-
     final token = _accessToken;
 
     if (token == null || token.isEmpty) return true;
