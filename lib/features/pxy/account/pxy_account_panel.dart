@@ -33,6 +33,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
   String? _error;
 
   String? _accessToken;
+  String? _refreshToken;
   Map<String, dynamic>? _user;
   Map<String, dynamic>? _subscription;
   int? _vpnSessionId;
@@ -117,10 +118,102 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     ref.read(pxyAccountReadyProvider.notifier).state = _isAccountReadyForVpn;
   }
 
+  bool _accessTokenNeedsRefresh() {
+    if (_accessTokenNeedsRefresh()) {
+      await _refreshAccessToken(silent: true);
+    }
+
+    final token = _accessToken;
+
+    if (token == null || token.isEmpty) return true;
+
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return true;
+
+      final payloadJson = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final payload = jsonDecode(payloadJson);
+
+      if (payload is! Map) return true;
+
+      final exp = payload['exp'];
+      if (exp is! int) return true;
+
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+      return exp <= now + 90;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<bool> _refreshAccessToken({bool silent = true}) async {
+    final refreshToken = _refreshToken;
+
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return false;
+    }
+
+    if (_accountApiUrl.isEmpty) {
+      return false;
+    }
+
+    try {
+      final response = await Dio(BaseOptions(baseUrl: _accountApiUrl)).post<dynamic>(
+        '/v1/auth/refresh',
+        data: {
+          'refresh_token': refreshToken,
+        },
+      );
+
+      final data = _asMap(response.data);
+      final tokens = data['tokens'];
+
+      if (tokens is! Map || tokens['access_token'] is! String) {
+        return false;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+
+      final newAccessToken = tokens['access_token'] as String;
+      _accessToken = newAccessToken;
+      await prefs.setString('pxy_v2_access_token', newAccessToken);
+
+      if (tokens['refresh_token'] is String) {
+        final newRefreshToken = tokens['refresh_token'] as String;
+        _refreshToken = newRefreshToken;
+        await prefs.setString('pxy_v2_refresh_token', newRefreshToken);
+      }
+
+      if (data['user'] is Map) {
+        _user = Map<String, dynamic>.from(data['user'] as Map);
+        await prefs.setString('pxy_v2_user_json', jsonEncode(_user));
+      }
+
+      if (data['subscription'] is Map) {
+        _subscription = Map<String, dynamic>.from(data['subscription'] as Map);
+        await prefs.setString('pxy_v2_subscription_json', jsonEncode(_subscription));
+      }
+
+      if (mounted) {
+        setState(() {
+          if (!silent) _message = 'Сессия обновлена.';
+          _error = null;
+        });
+      }
+
+      _syncReadyGate();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _loadStoredAccount() async {
     final prefs = await SharedPreferences.getInstance();
 
     final accessToken = prefs.getString('pxy_v2_access_token');
+    final refreshToken = prefs.getString('pxy_v2_refresh_token');
     final userRaw = prefs.getString('pxy_v2_user_json');
     final subscriptionRaw = prefs.getString('pxy_v2_subscription_json');
     final vpnSessionId = prefs.getInt('pxy_v2_vpn_session_id');
@@ -149,6 +242,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
 
     setState(() {
       _accessToken = accessToken;
+      _refreshToken = refreshToken;
       _user = user;
       _subscription = subscription;
       _vpnSessionId = vpnSessionId;
@@ -184,6 +278,11 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     if (tokens is Map && tokens['access_token'] is String) {
       _accessToken = tokens['access_token'] as String;
       await prefs.setString('pxy_v2_access_token', _accessToken!);
+
+      if (tokens['refresh_token'] is String) {
+        _refreshToken = tokens['refresh_token'] as String;
+        await prefs.setString('pxy_v2_refresh_token', _refreshToken!);
+      }
     }
   }
 
@@ -254,6 +353,10 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
   }
 
   Future<void> _refreshAccount({bool silent = false}) async {
+    if (_accessTokenNeedsRefresh()) {
+      await _refreshAccessToken(silent: true);
+    }
+
     final token = _accessToken;
     if (token == null || token.isEmpty) return;
 
@@ -322,6 +425,10 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
   }
 
   Future<void> _linkTelegramCode() async {
+    if (_accessTokenNeedsRefresh()) {
+      await _refreshAccessToken(silent: true);
+    }
+
     final token = _accessToken;
     if (token == null || token.isEmpty) {
       setState(() {
@@ -406,6 +513,10 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
   }
 
   Future<void> _startVpnSession() async {
+    if (_accessTokenNeedsRefresh()) {
+      await _refreshAccessToken(silent: true);
+    }
+
     final token = _accessToken;
     if (token == null || token.isEmpty) {
       setState(() {
@@ -513,6 +624,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     final prefs = await SharedPreferences.getInstance();
 
     await prefs.remove('pxy_v2_access_token');
+    await prefs.remove('pxy_v2_refresh_token');
     await prefs.remove('pxy_v2_user_json');
     await prefs.remove('pxy_v2_subscription_json');
     await prefs.remove('pxy_v2_vpn_session_id');
@@ -522,6 +634,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     if (!mounted) return;
     setState(() {
       _accessToken = null;
+      _refreshToken = null;
       _user = null;
       _subscription = null;
       _vpnSessionId = null;
