@@ -75,6 +75,47 @@ class _PxyDiagnosticsPanelState extends ConsumerState<PxyDiagnosticsPanel> {
       }
     }
 
+    if (apiUrl.isNotEmpty) {
+      final backendHealthUrl =
+          '${apiUrl.replaceAll(RegExp(r"/+$"), "")}/v1/diagnostics/backend-health';
+
+      try {
+        final response = await Dio().get<dynamic>(
+          backendHealthUrl,
+          options: Options(
+            sendTimeout: const Duration(seconds: 8),
+            receiveTimeout: const Duration(seconds: 8),
+          ),
+        );
+
+        final data = response.data;
+        final ok = data is Map && data['ok'] == true;
+        final backend = data is Map ? data['backend'] : null;
+        final inventory = data is Map ? data['inventory'] : null;
+        final protocol = backend is Map ? backend['protocol']?.toString() : null;
+        final transport = backend is Map ? backend['transport']?.toString() : null;
+        final free = inventory is Map ? inventory['free'] : null;
+
+        rows.add(
+          _PxyDiagRow(
+            title: 'Backend PXY',
+            ok: ok,
+            details: ok
+                ? 'Работает: ${protocol ?? 'vpn'}+${transport ?? 'transport'}, свободных профилей: ${free ?? '?'}'
+                : 'Backend отвечает, но сообщил о проблеме.',
+          ),
+        );
+      } catch (_) {
+        rows.add(
+          const _PxyDiagRow(
+            title: 'Backend PXY',
+            ok: false,
+            details: 'Не удалось проверить backend PXY.',
+          ),
+        );
+      }
+    }
+
     final activeProfile = ref.read(activeProfileProvider).valueOrNull;
     rows.add(
       _PxyDiagRow(
