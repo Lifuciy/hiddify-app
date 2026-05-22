@@ -106,7 +106,7 @@ class PxyConnectionModePanel extends ConsumerWidget {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('TUN исправлен: режим TUN, IPv4-only, MTU 1500, strict route выключен. Переподключите PXY от имени администратора.'),
+            content: Text('Полная защита исправлен: режим Полная защита, IPv4-only, MTU 1500, strict route выключен. Переподключите PXY от имени администратора.'),
           ),
         );
         return;
@@ -166,8 +166,8 @@ class PxyConnectionModePanel extends ConsumerWidget {
               const Gap(8),
               Text(
                 selectedTun
-                    ? 'TUN-режим: перехватывает трафик всех приложений. На Windows используется IPv4-only и требуется запуск от имени администратора.'
-                    : 'Системный прокси: запасной режим, если TUN не запускается или мешает сети.',
+                    ? 'Полная защита-режим: перехватывает трафик всех приложений. На Windows используется IPv4-only и требуется запуск от имени администратора.'
+                    : 'Выберите, как PXY будет подключать устройство к защищённому интернету.',
                 style: theme.textTheme.bodyMedium,
               ),
               const Gap(12),
@@ -176,12 +176,12 @@ class PxyConnectionModePanel extends ConsumerWidget {
                   ButtonSegment<bool>(
                     value: true,
                     icon: Icon(Icons.shield_rounded),
-                    label: Text('TUN'),
+                    label: Text('Полная защита'),
                   ),
                   ButtonSegment<bool>(
                     value: false,
                     icon: Icon(Icons.public_rounded),
-                    label: Text('Прокси'),
+                    label: Text('Быстрый режим'),
                   ),
                 ],
                 selected: {selectedTun},
@@ -205,18 +205,18 @@ class PxyConnectionModePanel extends ConsumerWidget {
               ),
               const Gap(8),
               Text(
-                'После смены режима отключите и снова подключите PXY.',
+                'После смены режима переподключите PXY.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
               const Gap(12),
               OutlinedButton.icon(
                 onPressed: () => _repairConnection(context, ref),
                 icon: const Icon(Icons.build_rounded),
-                label: const Text('Починить подключение'),
+                label: const Text('Восстановить подключение'),
               ),
               const Gap(6),
               Text(
-                'Синхронизирует Windows-прокси с текущим режимом и состоянием подключения.',
+                'Помогает восстановить подключение, если сайты перестали открываться.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ],

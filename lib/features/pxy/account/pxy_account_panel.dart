@@ -613,6 +613,9 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     final statusTitle = _statusTitle(status);
 
     if (status == 'active' || status == 'trial') {
+      if (planCode == 'test_unlimited') {
+        return 'Тестовый доступ активен\nДействует до: $expiresAt';
+      }
       return '$planTitle $statusTitle\nДействует до: $expiresAt';
     }
 

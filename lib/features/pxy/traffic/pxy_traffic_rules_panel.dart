@@ -27,7 +27,7 @@ class PxyTrafficRulesPanel extends ConsumerWidget {
                   Icon(Icons.route_rounded, color: theme.colorScheme.primary),
                   const Gap(8),
                   Text(
-                    'Правила трафика',
+                    'Режим работы сайтов',
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ],
@@ -35,7 +35,7 @@ class PxyTrafficRulesPanel extends ConsumerWidget {
               const Gap(8),
               Text(
                 isRecommended
-                    ? 'Сейчас российские ресурсы идут напрямую, остальное — через PXY.'
+                    ? 'Оптимальный режим помогает сохранить быстрый доступ к российским сервисам, а нужные сайты открывать через PXY.'
                     : 'Сейчас весь трафик идёт через PXY.',
                 style: theme.textTheme.bodyMedium,
               ),
@@ -50,7 +50,7 @@ class PxyTrafficRulesPanel extends ConsumerWidget {
                   ButtonSegment<bool>(
                     value: false,
                     icon: Icon(Icons.lock_rounded),
-                    label: Text('Полный VPN'),
+                    label: Text('Весь трафик через PXY'),
                   ),
                 ],
                 selected: {isRecommended},
@@ -63,7 +63,7 @@ class PxyTrafficRulesPanel extends ConsumerWidget {
               ),
               const Gap(8),
               Text(
-                'После смены режима лучше переподключить PXY.',
+                'После смены режима переподключите PXY.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ],
