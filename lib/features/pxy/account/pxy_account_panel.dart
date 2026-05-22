@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -38,6 +39,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
   Map<String, dynamic>? _subscription;
   int? _vpnSessionId;
   int? _profileVersion;
+  Timer? _heartbeatTimer;
   String? _shareLink;
 
   @override
@@ -116,6 +118,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
   void _syncReadyGate() {
     if (!mounted) return;
     ref.read(pxyAccountReadyProvider.notifier).state = _isAccountReadyForVpn;
+    _restartHeartbeatTimer();
   }
 
   bool _accessTokenNeedsRefresh() {
@@ -202,6 +205,59 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  void _restartHeartbeatTimer() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+
+    if (!_isAccountReadyForVpn || _vpnSessionId == null) {
+      return;
+    }
+
+    _heartbeatTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      unawaited(_sendHeartbeat(silent: true));
+    });
+  }
+
+  Future<void> _sendHeartbeat({bool silent = true}) async {
+    final sessionId = _vpnSessionId;
+
+    if (sessionId == null) {
+      return;
+    }
+
+    try {
+      final response = await _authorizedPost(
+        '/v1/vpn/session/heartbeat',
+        <String, dynamic>{
+          'vpn_session_id': sessionId,
+          'profile_version': _profileVersion ?? 1,
+        },
+      );
+
+      final data = _asMap(response.data);
+      final sessionStatus = data['session_status']?.toString();
+
+      if (sessionStatus == 'revoked') {
+        _heartbeatTimer?.cancel();
+        _heartbeatTimer = null;
+
+        if (mounted) {
+          setState(() {
+            _error = 'Подписка активирована на другом устройстве.';
+            _message = null;
+          });
+        }
+      }
+    } catch (e) {
+      if (!silent && mounted) {
+        setState(() {
+          _error = _formatError(e);
+          _message = null;
+        });
+      }
     }
   }
 
@@ -675,6 +731,9 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
   }
 
   Future<void> _logout() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+
     final prefs = await SharedPreferences.getInstance();
 
     await prefs.remove('pxy_v2_access_token');
