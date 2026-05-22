@@ -263,6 +263,39 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     }
   }
 
+  Future<void> _ensureLocalVpnProfile({bool silent = true}) async {
+    final shareLink = _shareLink;
+
+    if (!_isSubscriptionActive || shareLink == null || shareLink.isEmpty) {
+      return;
+    }
+
+    final activeProfile = ref.read(activeProfileProvider).valueOrNull;
+    if (activeProfile != null) {
+      return;
+    }
+
+    try {
+      await ref.read(addProfileNotifierProvider.notifier).addClipboard(_pxyDisplayShareLink(shareLink));
+      ref.invalidate(profileProvider);
+      ref.invalidate(activeProfileProvider);
+
+      if (!silent && mounted) {
+        setState(() {
+          _message = 'VPN-профиль восстановлен. Можно подключаться.';
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (!silent && mounted) {
+        setState(() {
+          _error = 'Не удалось восстановить VPN-профиль: ${_formatError(e)}';
+          _message = null;
+        });
+      }
+    }
+  }
+
   Future<void> _loadStoredAccount() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -304,6 +337,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
       _shareLink = shareLink;
     });
     _syncReadyGate();
+    await _ensureLocalVpnProfile(silent: true);
 
     if (accessToken != null && accessToken.isNotEmpty) {
       await _refreshAccount(silent: true);
@@ -533,6 +567,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
         _error = null;
       });
       _syncReadyGate();
+      await _ensureLocalVpnProfile(silent: true);
 
       if (_isSubscriptionActive && !_isAccountReadyForVpn) {
         await _startVpnSession();
