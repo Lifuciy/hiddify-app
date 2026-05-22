@@ -50,6 +50,8 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
 
   @override
   void dispose() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     _emailController.dispose();
     _passwordController.dispose();
     _telegramCodeController.dispose();
