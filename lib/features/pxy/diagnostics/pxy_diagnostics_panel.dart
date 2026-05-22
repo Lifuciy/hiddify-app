@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/connection/notifier/connection_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PxyDiagnosticsPanel extends ConsumerStatefulWidget {
@@ -80,6 +81,31 @@ class _PxyDiagnosticsPanelState extends ConsumerState<PxyDiagnosticsPanel> {
         title: 'VPN-профиль',
         ok: activeProfile != null,
         details: activeProfile != null ? 'Профиль выбран и готов к подключению' : 'Профиль не выбран',
+      ),
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    final vpnSessionId = prefs.getInt('pxy_v2_vpn_session_id');
+    final profileVersion = prefs.getInt('pxy_v2_profile_version');
+    final shareLink = prefs.getString('pxy_v2_share_link');
+
+    rows.add(
+      _PxyDiagRow(
+        title: 'Сессия устройства',
+        ok: vpnSessionId != null,
+        details: vpnSessionId != null
+            ? 'Сессия активна, ID: $vpnSessionId, версия профиля: ${profileVersion ?? 1}'
+            : 'Сессия не найдена. Нажмите “Восстановить профиль”.',
+      ),
+    );
+
+    rows.add(
+      _PxyDiagRow(
+        title: 'Профиль PXY в памяти приложения',
+        ok: shareLink != null && shareLink.startsWith('vless://'),
+        details: shareLink != null && shareLink.startsWith('vless://')
+            ? 'Профиль сохранён'
+            : 'Профиль не сохранён. Нажмите “Восстановить профиль”.',
       ),
     );
 
