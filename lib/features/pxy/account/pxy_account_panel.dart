@@ -290,7 +290,6 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
 
     try {
       await ref.read(addProfileNotifierProvider.notifier).addClipboard(_pxyDisplayShareLink(shareLink));
-      ref.invalidate(profileProvider);
       ref.invalidate(activeProfileProvider);
 
       if (!silent && mounted) {
