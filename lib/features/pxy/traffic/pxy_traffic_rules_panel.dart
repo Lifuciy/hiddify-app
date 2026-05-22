@@ -45,7 +45,7 @@ class PxyTrafficRulesPanel extends ConsumerWidget {
                   ButtonSegment<bool>(
                     value: true,
                     icon: Icon(Icons.auto_awesome_rounded),
-                    label: Text('Рекомендуемый'),
+                    label: Text('Оптимальный'),
                   ),
                   ButtonSegment<bool>(
                     value: false,
