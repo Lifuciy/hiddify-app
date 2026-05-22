@@ -95,13 +95,17 @@ class _PxyDiagnosticsPanelState extends ConsumerState<PxyDiagnosticsPanel> {
         final protocol = backend is Map ? backend['protocol']?.toString() : null;
         final transport = backend is Map ? backend['transport']?.toString() : null;
         final free = inventory is Map ? inventory['free'] : null;
+        final low = inventory is Map && inventory['low'] == true;
+        final threshold = inventory is Map ? inventory['free_threshold'] : null;
 
         rows.add(
           _PxyDiagRow(
             title: 'Backend PXY',
-            ok: ok,
+            ok: ok && !low,
             details: ok
-                ? 'Работает: ${protocol ?? 'vpn'}+${transport ?? 'transport'}, свободных профилей: ${free ?? '?'}'
+                ? low
+                    ? 'Мало свободных профилей: ${free ?? '?'}. Порог: ${threshold ?? 2}. Нужно пополнить inventory.'
+                    : 'Работает: ${protocol ?? 'vpn'}+${transport ?? 'transport'}, свободных профилей: ${free ?? '?'}'
                 : 'Backend отвечает, но сообщил о проблеме.',
           ),
         );
