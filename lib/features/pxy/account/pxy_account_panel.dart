@@ -223,6 +223,26 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     });
   }
 
+  Future<void> _handleRevokedVpnSession() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('pxy_v2_vpn_session_id');
+    await prefs.remove('pxy_v2_profile_version');
+
+    if (!mounted) return;
+
+    setState(() {
+      _vpnSessionId = null;
+      _profileVersion = null;
+      _error = 'Подписка активирована на другом устройстве. Чтобы использовать PXY здесь, нажмите “Восстановить профиль”.';
+      _message = null;
+    });
+
+    _syncReadyGate();
+  }
+
   Future<void> _sendHeartbeat({bool silent = true}) async {
     final sessionId = _vpnSessionId;
 
@@ -243,15 +263,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
       final sessionStatus = data['session_status']?.toString();
 
       if (sessionStatus == 'revoked') {
-        _heartbeatTimer?.cancel();
-        _heartbeatTimer = null;
-
-        if (mounted) {
-          setState(() {
-            _error = 'Подписка активирована на другом устройстве.';
-            _message = null;
-          });
-        }
+        await _handleRevokedVpnSession();
       }
     } catch (e) {
       if (!silent && mounted) {
