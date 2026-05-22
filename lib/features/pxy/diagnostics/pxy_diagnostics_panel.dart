@@ -82,6 +82,35 @@ class _PxyDiagnosticsPanelState extends ConsumerState<PxyDiagnosticsPanel> {
       ),
     );
 
+    try {
+      final ipResponse = await Dio().get<String>(
+        'https://api.ipify.org',
+        options: Options(
+          sendTimeout: const Duration(seconds: 8),
+          receiveTimeout: const Duration(seconds: 8),
+          responseType: ResponseType.plain,
+        ),
+      );
+
+      final ip = ipResponse.data?.trim() ?? '';
+
+      rows.add(
+        _PxyDiagRow(
+          title: 'Внешний IP',
+          ok: ip.isNotEmpty,
+          details: ip.isNotEmpty ? ip : 'Не удалось определить IP',
+        ),
+      );
+    } catch (_) {
+      rows.add(
+        const _PxyDiagRow(
+          title: 'Внешний IP',
+          ok: false,
+          details: 'Не удалось проверить внешний IP',
+        ),
+      );
+    }
+
     rows.add(
       const _PxyDiagRow(
         title: 'Поддержка',
@@ -96,14 +125,15 @@ class _PxyDiagnosticsPanelState extends ConsumerState<PxyDiagnosticsPanel> {
       _loading = false;
       _rows = rows;
       _message = hasError
-          ? 'Есть проблема. Скопируйте отчёт и отправьте его в поддержку.'
-          : 'Базовая проверка прошла успешно.';
+          ? 'Обнаружена проблема. Скопируйте отчёт и отправьте его в поддержку.'
+          : 'Проверка прошла успешно. Основные компоненты PXY работают.';
     });
   }
 
   Future<void> _copyReport() async {
     final buffer = StringBuffer()
       ..writeln('PXY diagnostics')
+      ..writeln('Time: ${DateTime.now().toIso8601String()}')
       ..writeln('API: ${_accountApiUrl.isEmpty ? "not configured" : _accountApiUrl}')
       ..writeln();
 
