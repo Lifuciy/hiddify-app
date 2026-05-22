@@ -8,6 +8,7 @@ import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/notifier/profile_notifier.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 final pxyAccountReadyProvider = StateProvider<bool>((ref) => false);
@@ -393,6 +394,17 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     }
   }
 
+  String _pxyDisplayShareLink(String shareLink) {
+    final displayName = Uri.encodeComponent('Автоматический сервер');
+    final hashIndex = shareLink.indexOf('#');
+
+    if (hashIndex < 0) {
+      return '$shareLink#$displayName';
+    }
+
+    return '${shareLink.substring(0, hashIndex)}#$displayName';
+  }
+
   Future<void> _startVpnSession() async {
     final token = _accessToken;
     if (token == null || token.isEmpty) {
@@ -442,7 +454,7 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
       final shouldImportProfile = activeProfile == null || _shareLink != shareLink;
 
       if (shouldImportProfile) {
-        await ref.read(addProfileNotifierProvider.notifier).addClipboard(shareLink);
+        await ref.read(addProfileNotifierProvider.notifier).addClipboard(_pxyDisplayShareLink(shareLink));
 
         final importState = ref.read(addProfileNotifierProvider);
         if (importState.hasError) {
@@ -548,16 +560,67 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
     return error.toString().replaceFirst('Exception: ', '');
   }
 
+  Future<void> _openSupport() async {
+    final uri = Uri.parse('https://t.me/MarketSellerVPN_help_bot');
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+    if (!opened && mounted) {
+      setState(() {
+        _error = 'Не удалось открыть поддержку. Напишите: @MarketSellerVPN_help_bot';
+      });
+    }
+  }
+
+  String _planTitle(String planCode) {
+    switch (planCode) {
+      case 'week_1':
+        return 'Подписка на 7 дней';
+      case 'month_1':
+        return 'Подписка на 30 дней';
+      case 'month_3':
+        return 'Подписка на 90 дней';
+      case 'test_unlimited':
+        return 'Тестовый доступ';
+      default:
+        return 'Подписка';
+    }
+  }
+
+  String _statusTitle(String status) {
+    switch (status) {
+      case 'active':
+        return 'активна';
+      case 'trial':
+        return 'активна';
+      case 'expired':
+        return 'закончилась';
+      case 'cancelled':
+        return 'отменена';
+      default:
+        return 'неактивна';
+    }
+  }
+
   String _subscriptionText() {
     final sub = _subscription;
     if (sub == null) return 'Подписка не найдена';
 
-    final status = sub['status']?.toString() ?? '—';
-    final plan = sub['plan_code']?.toString() ?? '—';
-    final daysLeft = sub['days_left']?.toString() ?? '—';
+    final status = sub['status']?.toString().toLowerCase() ?? '';
+    final planCode = sub['plan_code']?.toString() ?? '';
     final expiresAt = sub['expires_at']?.toString() ?? '—';
 
-    return 'Подписка: $status\nТариф: $plan\nОсталось дней: $daysLeft\nДействует до: $expiresAt';
+    final planTitle = _planTitle(planCode);
+    final statusTitle = _statusTitle(status);
+
+    if (status == 'active' || status == 'trial') {
+      return '$planTitle $statusTitle\nДействует до: $expiresAt';
+    }
+
+    if (status == 'expired') {
+      return '$planTitle закончилась\nПродлите доступ, чтобы подключиться';
+    }
+
+    return '$planTitle $statusTitle\nДействует до: $expiresAt';
   }
 
   @override
@@ -678,10 +741,15 @@ class _PxyAccountPanelState extends ConsumerState<PxyAccountPanel> {
                       icon: const Icon(Icons.refresh_rounded),
                       label: const Text('Обновить'),
                     ),
+                    OutlinedButton.icon(
+                      onPressed: _loading ? null : _openSupport,
+                      icon: const Icon(Icons.support_agent_rounded),
+                      label: const Text('Поддержка'),
+                    ),
                     TextButton.icon(
                       onPressed: _loading ? null : _logout,
                       icon: const Icon(Icons.logout_rounded),
-                      label: const Text('Выйти'),
+                      label: const Text('Сменить аккаунт'),
                     ),
                   ],
                 ),

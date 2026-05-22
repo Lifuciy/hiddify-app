@@ -7,7 +7,6 @@ import 'package:hiddify/features/home/widget/connection_button.dart';
 import 'package:hiddify/features/pxy/account/pxy_account_panel.dart';
 import 'package:hiddify/features/pxy/connection/pxy_connection_mode_panel.dart';
 import 'package:hiddify/features/pxy/traffic/pxy_traffic_rules_panel.dart';
-import 'package:hiddify/features/proxy/active/active_proxy_card.dart';
 import 'package:hiddify/features/proxy/active/active_proxy_delay_indicator.dart';
 import 'package:hiddify/gen/assets.gen.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -88,7 +87,7 @@ class HomePage extends HookConsumerWidget {
                                   Gap(8),
                                   ActiveProxyDelayIndicator(),
                                   Gap(8),
-                                  ActiveProxyFooter(),
+                                  PxyConnectionSummary(),
                                 ],
                               ),
                             ),
@@ -121,6 +120,47 @@ class HomePage extends HookConsumerWidget {
 }
 
 
+
+class PxyConnectionSummary extends StatelessWidget {
+  const PxyConnectionSummary({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        color: theme.colorScheme.surface,
+        child: ListTile(
+          leading: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.shield_rounded,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          title: Text(
+            'Автоматический сервер',
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          subtitle: const Text('Защищённое подключение PXY'),
+          trailing: Icon(
+            Icons.check_circle_rounded,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
 class PxyAdvancedSettingsPanel extends StatelessWidget {
   const PxyAdvancedSettingsPanel({super.key});
 
@@ -133,6 +173,7 @@ class PxyAdvancedSettingsPanel extends StatelessWidget {
       child: Card(
         color: theme.colorScheme.surfaceContainer,
         child: ExpansionTile(
+          initiallyExpanded: false,
           leading: Icon(Icons.tune_rounded, color: theme.colorScheme.primary),
           title: Text(
             'Расширенные настройки',
