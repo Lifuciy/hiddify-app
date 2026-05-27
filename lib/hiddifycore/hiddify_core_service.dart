@@ -169,8 +169,10 @@ class HiddifyCoreService with InfraLogger {
         );
         ref.read(coreRestartSignalProvider.notifier).restart();
         if (res.messageType != MessageType.ALREADY_STARTED && res.messageType != MessageType.EMPTY) {
+          final detail = "failed to start background core: ${res.messageType} ${res.message}";
+          loggy.error(detail);
           statusController.add(currentState = const CoreStatus.stopped(alert: CoreAlert.startFailed));
-          return left(const ConnectionFailure.unexpected("failed to start background core"));
+          return left(ConnectionFailure.unexpected(detail));
         }
       } on GrpcError catch (e) {
         loggy.error("failed to start bg core: $e");
@@ -182,7 +184,7 @@ class HiddifyCoreService with InfraLogger {
         // throw DioException.connectionError(requestOptions: RequestOptions(), reason: e.codeName, error: e);
 
         // throw DioException(requestOptions: RequestOptions(), error: e);
-        return left(const ConnectionFailure.unexpected("failed to start background core"));
+        return left(ConnectionFailure.unexpected("failed to start background core: grpc ${e.codeName} ${e.message}"));
       }
 
       // if (res.messageType != MessageType.EMPTY) return left(res);
