@@ -66,7 +66,7 @@ abstract class ConfigOptions {
 
   static final remoteDnsDomainStrategy = PreferencesNotifier.create<DomainStrategy, String>(
     "remote-dns-domain-strategy",
-    DomainStrategy.auto,
+    DomainStrategy.ipv4Only,
     mapFrom: (value) => DomainStrategy.values.firstWhere((e) => e.key == value),
     mapTo: (value) => value.key,
   );
@@ -91,7 +91,7 @@ abstract class ConfigOptions {
 
   static final directDnsDomainStrategy = PreferencesNotifier.create<DomainStrategy, String>(
     "direct-dns-domain-strategy",
-    DomainStrategy.auto,
+    DomainStrategy.ipv4Only,
     mapFrom: (value) => DomainStrategy.values.firstWhere((e) => e.key == value),
     mapTo: (value) => value.key,
   );
@@ -125,7 +125,7 @@ abstract class ConfigOptions {
     mapTo: (value) => value.name,
   );
 
-  static final mtu = PreferencesNotifier.create<int, int>("mtu", 9000);
+  static final mtu = PreferencesNotifier.create<int, int>("mtu", 1400);
 
   static final strictRoute = PreferencesNotifier.create<bool, bool>("strict-route", true);
 
@@ -350,7 +350,20 @@ abstract class ConfigOptions {
 
   static final singboxConfigOptions = Provider<SingboxConfigOption>((ref) {
     final selectedRegion = ref.watch(region);
-    final rules = switch (selectedRegion) {
+
+    const pxyStableRules = <SingboxRule>[
+      SingboxRule(
+        protocol: "quic",
+        outbound: RuleOutbound.block,
+      ),
+      SingboxRule(
+        domains:
+            "domain:youtube.com,domain:.youtube.com,domain:youtu.be,domain:.youtu.be,domain:googlevideo.com,domain:.googlevideo.com,domain:ytimg.com,domain:.ytimg.com,domain:youtubei.googleapis.com,domain:youtube.googleapis.com,domain:googleusercontent.com,domain:.googleusercontent.com,domain:gvt1.com,domain:.gvt1.com,domain:ggpht.com,domain:.ggpht.com",
+        outbound: RuleOutbound.proxy,
+      ),
+    ];
+
+    final regionalRules = switch (selectedRegion) {
       Region.ru => [
           const SingboxRule(
             domains: "domain:.ru",
@@ -361,7 +374,10 @@ abstract class ConfigOptions {
       _ => <SingboxRule>[],
     };
 
+    final rules = [...pxyStableRules, ...regionalRules];
+
     final mode = ref.watch(serviceMode);
+    final isTunMode = mode == ServiceMode.tun || mode == ServiceMode.tunService;
     // final reg = ref.watch(Preferences.region.notifier).raw();
 
     return SingboxConfigOption(
@@ -372,17 +388,17 @@ abstract class ConfigOptions {
       executeConfigAsIs: false,
       logLevel: ref.watch(logLevel),
       resolveDestination: ref.watch(resolveDestination),
-      ipv6Mode: ref.watch(ipv6Mode),
-      remoteDnsAddress: ref.watch(remoteDnsAddress),
-      remoteDnsDomainStrategy: ref.watch(remoteDnsDomainStrategy),
-      directDnsAddress: ref.watch(directDnsAddress),
-      directDnsDomainStrategy: ref.watch(directDnsDomainStrategy),
+      ipv6Mode: isTunMode ? IPv6Mode.disable : ref.watch(ipv6Mode),
+      remoteDnsAddress: isTunMode ? "tcp://8.8.8.8" : ref.watch(remoteDnsAddress),
+      remoteDnsDomainStrategy: isTunMode ? DomainStrategy.ipv4Only : ref.watch(remoteDnsDomainStrategy),
+      directDnsAddress: isTunMode ? "tcp://1.1.1.1" : ref.watch(directDnsAddress),
+      directDnsDomainStrategy: isTunMode ? DomainStrategy.ipv4Only : ref.watch(directDnsDomainStrategy),
       mixedPort: ref.watch(mixedPort),
       tproxyPort: ref.watch(tproxyPort),
       directPort: ref.watch(directPort),
       redirectPort: ref.watch(redirectPort),
       tunImplementation: ref.watch(tunImplementation),
-      mtu: ref.watch(mtu),
+      mtu: isTunMode ? 1400 : ref.watch(mtu),
       strictRoute: ref.watch(strictRoute),
       connectionTestUrl: ref.watch(connectionTestUrl),
       urlTestInterval: ref.watch(urlTestInterval),
@@ -393,7 +409,7 @@ abstract class ConfigOptions {
       setSystemProxy: mode == ServiceMode.systemProxy,
       bypassLan: ref.watch(bypassLan),
       allowConnectionFromLan: ref.watch(allowConnectionFromLan),
-      enableFakeDns: ref.watch(enableFakeDns),
+      enableFakeDns: isTunMode ? false : ref.watch(enableFakeDns),
       // enableDnsRouting: ref.watch(enableDnsRouting),
       independentDnsCache: ref.watch(independentDnsCache),
       mux: SingboxMuxOption(
