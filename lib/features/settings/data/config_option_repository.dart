@@ -353,10 +353,6 @@ abstract class ConfigOptions {
 
     const pxyStableRules = <SingboxRule>[
       SingboxRule(
-        protocol: "quic",
-        outbound: RuleOutbound.block,
-      ),
-      SingboxRule(
         domains:
             "domain:youtube.com,domain:.youtube.com,domain:youtu.be,domain:.youtu.be,domain:googlevideo.com,domain:.googlevideo.com,domain:ytimg.com,domain:.ytimg.com,domain:youtubei.googleapis.com,domain:youtube.googleapis.com,domain:googleusercontent.com,domain:.googleusercontent.com,domain:gvt1.com,domain:.gvt1.com,domain:ggpht.com,domain:.ggpht.com",
         outbound: RuleOutbound.proxy,
