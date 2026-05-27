@@ -351,15 +351,8 @@ abstract class ConfigOptions {
   static final singboxConfigOptions = Provider<SingboxConfigOption>((ref) {
     final selectedRegion = ref.watch(region);
 
-    const pxyStableRules = <SingboxRule>[
-      SingboxRule(
-        domains:
-            "domain:youtube.com,domain:.youtube.com,domain:youtu.be,domain:.youtu.be,domain:googlevideo.com,domain:.googlevideo.com,domain:ytimg.com,domain:.ytimg.com,domain:youtubei.googleapis.com,domain:youtube.googleapis.com,domain:googleusercontent.com,domain:.googleusercontent.com,domain:gvt1.com,domain:.gvt1.com,domain:ggpht.com,domain:.ggpht.com",
-        outbound: RuleOutbound.proxy,
-      ),
-    ];
 
-    final regionalRules = switch (selectedRegion) {
+    final rules = switch (selectedRegion) {
       Region.ru => [
           const SingboxRule(
             domains: "domain:.ru",
@@ -369,8 +362,6 @@ abstract class ConfigOptions {
         ],
       _ => <SingboxRule>[],
     };
-
-    final rules = [...pxyStableRules, ...regionalRules];
 
     final mode = ref.watch(serviceMode);
     final isTunMode = mode == ServiceMode.tun || mode == ServiceMode.tunService;
